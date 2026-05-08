@@ -1,0 +1,39 @@
+# Activity Log
+
+## Iteration 0 — Project Setup
+- Created .ralph/ state files
+- Defined 6-phase task breakdown with checkboxes
+- Established guardrails for EEG domain constraints
+- Next: Phase 1 — EEG signal generation
+
+## Iteration 0.1 — Time-Domain Code Received
+- User provided `src/timedomain_specparam.py`
+- Code review findings:
+  - Fits ACF model with 5 params: [b, k, a, c, w] (offset, knee, peak_amp, center_freq, bandwidth)
+  - Aperiodic exponent FIXED at chi=2 (Lorentzian/OU process) — NOT a free parameter
+  - Single periodic peak only — no multi-peak support
+  - Includes `process_bids_dataset()` — BIDS I/O we will NOT use (no mne_bids dependency)
+  - Returns None on convergence failure — wrapper must handle
+  - Uses `acf() * variance` for unnormalized autocovariance — signal must not be z-scored
+- Updated ralph_task.md Phase 3 with 8 detailed integration subtasks
+- Added 6 new guardrails about time-domain code constraints
+- Updated CLAUDE.md schemas with parameter mapping table
+- Phase 3 is now UNBLOCKED
+- Next: Phase 1 — EEG signal generation (unchanged)
+
+## Iteration 0.2 — Scope Change: Time-Domain Code Is Now Modifiable
+- User clarified: the time-domain code is a STARTING POINT, not a black box
+- Goal is to create an OPTIMAL time-domain specparam that matches spectral SpecParam output
+- Rewrote Phase 3 from 8 integration tasks → 5 sub-phases (3A–3E) covering:
+  - 3A: initial integration + baseline discrepancy measurement
+  - 3B: generalize aperiodic exponent (remove chi=2 hardcoding)
+  - 3C: extend to multi-peak support
+  - 3D: convergence & robustness improvements
+  - 3E: full equivalence validation across parameter space
+- Replaced "do not modify" guardrails with development methodology guardrails
+- Added guardrail: preserve mathematical rigor when generalizing ACF model
+- Added guardrail: spectral SpecParam is ground truth
+- Added guardrail: measure before/after every modification
+- Updated CLAUDE.md schemas and design principles
+- Will keep `timedomain_specparam_original.py` as unmodified reference
+- Next: Phase 1 — EEG signal generation (unchanged)
