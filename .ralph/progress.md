@@ -1,7 +1,7 @@
 # Progress
 
 ## Last Updated
-Iteration 5 — Phases 1-6 scaffolded. Web UI working locally. Docker + Railway config created.
+Iteration 6 — Bland-Altman plot, sweep heatmap, and regression test suite added.
 
 ## What Exists
 - `pyproject.toml`, `src/__init__.py`, `tests/__init__.py`
@@ -15,9 +15,10 @@ Iteration 5 — Phases 1-6 scaffolded. Web UI working locally. Docker + Railway 
 - `src/app.py` — FastAPI web UI with Plotly PSD plot + parameter comparison table
 - `Dockerfile` — Python 3.12-slim, pip install, expose 8000
 - `railway.toml` — DOCKERFILE builder, healthcheck at /health, PORT env var
-- Tests: 63 total, all passing
+- Tests: 123 total, all passing
   - test_eeg_generator.py (25), test_spectral_specparam.py (13)
   - test_time_domain_wrapper.py (17), test_comparison.py (8)
+  - test_regression_equivalence.py (60) — full parameter sweep regression suite
 
 ## Current Agreement (across exponent sweep)
 | Metric         | Value   |
@@ -41,19 +42,15 @@ Nothing — all tests pass. App runs locally on port 8000/8001.
 
 ## Known Issues
 - Peak bandwidth ~2x different from spectral SpecParam (different fitting methodology)
-- Bland-Altman plot and heatmap/sweep plot not yet built in web UI
+- Spectral SpecParam detects more spurious noise peaks than TD (TD is closer to ground truth peak count)
 - Not yet deployed to Railway (config is ready, needs `railway up`)
 - No README yet
-- Phase 3E (full equivalence validation sweep) is partial — TOST test exists but no comprehensive parameter sweep
 
 ## Current Focus
 **Remaining work to complete all phases:**
-1. Add Bland-Altman plot and sweep heatmap to web UI (Phase 5)
-2. Deploy to Railway (Phase 6)
-3. Write README (Phase 6)
-4. Run comprehensive equivalence sweep across parameter space (Phase 3E)
+1. Deploy to Railway (Phase 6) — needs `railway up` with auth
+2. Write README with deployment instructions (Phase 6)
 
 ## Next Steps
 1. Deploy to Railway with `railway up`
-2. Add Bland-Altman and sweep visualization to dashboard
-3. Write README with deployment instructions
+2. Write README with deployment instructions

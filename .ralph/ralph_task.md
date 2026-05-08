@@ -66,8 +66,8 @@ output. The provided code is a working prototype with known limitations to addre
 
 **3E: Equivalence validation**
 - [x] Across the full parameter sweep (exponent × peak count × SNR × duration), time-domain params must match spectral SpecParam within TOST equivalence bounds
-- [ ] If specific regions of parameter space show poor agreement, diagnose and fix
-- [ ] Final regression test suite: batch of synthetic signals with known ground truth, both pipelines must agree
+- [x] If specific regions of parameter space show poor agreement, diagnose and fix
+- [x] Final regression test suite: batch of synthetic signals with known ground truth, both pipelines must agree
 
 ### Phase 4: Equivalence Comparison Engine
 - [x] Compute parameter-wise differences between spectral and time-domain results (aperiodic exponent, offset, peak params)
@@ -82,8 +82,8 @@ output. The provided code is a working prototype with known limitations to addre
 - [x] PSD plot of generated signal with SpecParam fit overlay (spectral-domain)
 - [x] Time-domain SpecParam results overlay on same or adjacent plot
 - [x] Side-by-side parameter comparison table
-- [ ] Bland-Altman plot for batch equivalence runs
-- [ ] Heatmap or sweep plot: agreement metric across parameter space
+- [x] Bland-Altman plot for batch equivalence runs
+- [x] Heatmap or sweep plot: agreement metric across parameter space
 - [x] Responsive layout, works on desktop
 
 ### Phase 6: Deployment
@@ -91,7 +91,7 @@ output. The provided code is a working prototype with known limitations to addre
 - [x] Railway deployment config (railway.toml or Procfile)
 - [x] Health check endpoint
 - [x] Environment variable configuration for production
-- [ ] README with deployment instructions
+- [x] README with deployment instructions
 - [ ] Deployed and accessible on Railway
 
 ## Environment

@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import plotly
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from fastapi import FastAPI, Query
 from fastapi.responses import HTMLResponse
 from scipy.signal import welch
@@ -11,7 +12,7 @@ from .schemas import AperiodicParams, PeriodicPeak
 from .eeg_generator import generate_eeg_signal
 from .spectral_specparam import fit_spectral_specparam
 from .time_domain_wrapper import fit_time_domain
-from .comparison import compare_results
+from .comparison import compare_results, compute_agreement_metrics, tost_equivalence
 
 app = FastAPI(title="EEG SpecParam Equivalence Simulator")
 
@@ -171,7 +172,8 @@ th {{ background: #2c3e50; color: white; }}
 </head>
 <body>
 <h1>EEG SpecParam Equivalence Simulator</h1>
-<p class="subtitle">Compare spectral and time-domain SpecParam on synthetic EEG</p>
+<p class="subtitle">Compare spectral and time-domain SpecParam on synthetic EEG
+ — <a href="/sweep">Batch Equivalence Sweep</a></p>
 
 <form method="get">
 <div class="grid">
@@ -219,6 +221,243 @@ th {{ background: #2c3e50; color: white; }}
 <tr><th>Parameter</th><th>Spectral</th><th>Time-Domain</th><th>Difference</th></tr>
 {table_html}
 </table>
+
+</body>
+</html>"""
+
+
+def _run_sweep(
+    exponents: list[float],
+    peak_powers: list[float],
+    peak_center: float = 10.0,
+    peak_bw: float = 2.0,
+    sfreq: float = 256.0,
+    duration: float = 10.0,
+    offset: float = 1.5,
+    base_seed: int = 42,
+):
+    results = []
+    for i, exp in enumerate(exponents):
+        for j, pp in enumerate(peak_powers):
+            aperiodic = AperiodicParams(offset=offset, exponent=exp)
+            peaks = []
+            if pp > 0:
+                peaks = [PeriodicPeak(center_frequency=peak_center, power=pp, bandwidth=peak_bw)]
+
+            signal = generate_eeg_signal(
+                aperiodic, peaks, sfreq=sfreq, duration=duration,
+                random_seed=base_seed + i * 100 + j,
+            )
+            spectral = fit_spectral_specparam(signal)
+            td = fit_time_domain(signal)
+            comp = compare_results(spectral, td)
+            results.append({
+                "exponent": exp,
+                "peak_power": pp,
+                "spectral": spectral,
+                "td": td,
+                "comp": comp,
+            })
+    return results
+
+
+def _build_bland_altman(results: list[dict]):
+    spec_exps = np.array([r["spectral"].aperiodic.exponent for r in results])
+    td_exps = np.array([r["td"].aperiodic.exponent for r in results])
+    spec_offs = np.array([r["spectral"].aperiodic.offset for r in results])
+    td_offs = np.array([r["td"].aperiodic.offset for r in results])
+
+    fig = make_subplots(rows=1, cols=2, subplot_titles=("Exponent", "Offset"))
+
+    for col, (spec_vals, td_vals, name) in enumerate([
+        (spec_exps, td_exps, "Exponent"),
+        (spec_offs, td_offs, "Offset"),
+    ], start=1):
+        means = (spec_vals + td_vals) / 2
+        diffs = spec_vals - td_vals
+        mean_diff = float(np.mean(diffs))
+        std_diff = float(np.std(diffs, ddof=1)) if len(diffs) > 1 else 0.0
+        upper_loa = mean_diff + 1.96 * std_diff
+        lower_loa = mean_diff - 1.96 * std_diff
+
+        colors = [r["exponent"] for r in results]
+
+        fig.add_trace(go.Scatter(
+            x=means, y=diffs, mode="markers",
+            marker=dict(color=colors, colorscale="Viridis", size=8,
+                        colorbar=dict(title="Exp") if col == 2 else dict(title="")),
+            name=name,
+            showlegend=False,
+        ), row=1, col=col)
+
+        x_range = [float(np.min(means)) - 0.1, float(np.max(means)) + 0.1]
+        fig.add_trace(go.Scatter(
+            x=x_range, y=[mean_diff, mean_diff], mode="lines",
+            line=dict(color="red", dash="solid"), name="Mean diff",
+            showlegend=(col == 1),
+        ), row=1, col=col)
+        fig.add_trace(go.Scatter(
+            x=x_range, y=[upper_loa, upper_loa], mode="lines",
+            line=dict(color="gray", dash="dash"), name="+1.96 SD",
+            showlegend=(col == 1),
+        ), row=1, col=col)
+        fig.add_trace(go.Scatter(
+            x=x_range, y=[lower_loa, lower_loa], mode="lines",
+            line=dict(color="gray", dash="dash"), name="-1.96 SD",
+            showlegend=(col == 1),
+        ), row=1, col=col)
+
+        fig.update_xaxes(title_text=f"Mean {name}", row=1, col=col)
+        fig.update_yaxes(title_text=f"Difference (Spec - TD)", row=1, col=col)
+
+    fig.update_layout(height=400, margin=dict(l=60, r=20, t=40, b=50))
+    return fig
+
+
+def _build_sweep_heatmap(results: list[dict]):
+    exponents = sorted(set(r["exponent"] for r in results))
+    peak_powers = sorted(set(r["peak_power"] for r in results))
+
+    exp_diff_grid = np.full((len(peak_powers), len(exponents)), np.nan)
+    off_diff_grid = np.full((len(peak_powers), len(exponents)), np.nan)
+
+    for r in results:
+        i = peak_powers.index(r["peak_power"])
+        j = exponents.index(r["exponent"])
+        exp_diff_grid[i, j] = abs(r["comp"].exponent_diff)
+        off_diff_grid[i, j] = abs(r["comp"].offset_diff)
+
+    fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=("Exponent |Diff|", "Offset |Diff|"),
+        horizontal_spacing=0.15,
+    )
+
+    pp_labels = [f"{p:.1f}" for p in peak_powers]
+    exp_labels = [f"{e:.2f}" for e in exponents]
+
+    fig.add_trace(go.Heatmap(
+        z=exp_diff_grid, x=exp_labels, y=pp_labels,
+        colorscale="YlOrRd", zmin=0, zmax=0.3,
+        colorbar=dict(title="|Diff|", x=0.42, len=0.9),
+    ), row=1, col=1)
+
+    fig.add_trace(go.Heatmap(
+        z=off_diff_grid, x=exp_labels, y=pp_labels,
+        colorscale="YlOrRd", zmin=0, zmax=0.5,
+        colorbar=dict(title="|Diff|", x=1.0, len=0.9),
+    ), row=1, col=2)
+
+    fig.update_xaxes(title_text="Aperiodic Exponent", row=1, col=1)
+    fig.update_xaxes(title_text="Aperiodic Exponent", row=1, col=2)
+    fig.update_yaxes(title_text="Peak Power", row=1, col=1)
+    fig.update_yaxes(title_text="Peak Power", row=1, col=2)
+    fig.update_layout(height=400, margin=dict(l=60, r=20, t=40, b=50))
+    return fig
+
+
+@app.get("/sweep", response_class=HTMLResponse)
+def sweep_page(
+    mode: str = Query("quick", pattern="^(quick|full)$"),
+    seed: int = Query(42, ge=0, le=9999),
+):
+    if mode == "full":
+        exponents = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+        peak_powers = [0.0, 0.3, 0.6, 0.9, 1.2, 1.5]
+    else:
+        exponents = [1.0, 1.25, 1.5, 1.75, 2.0]
+        peak_powers = [0.0, 0.4, 0.8, 1.2]
+
+    results = _run_sweep(exponents, peak_powers, base_seed=seed)
+    comparisons = [r["comp"] for r in results]
+    metrics = compute_agreement_metrics(comparisons)
+
+    exp_diffs = np.array([c.exponent_diff for c in comparisons])
+    off_diffs = np.array([c.offset_diff for c in comparisons])
+    tost_exp = tost_equivalence(exp_diffs, bound=0.2)
+    tost_off = tost_equivalence(off_diffs, bound=0.3)
+
+    ba_fig = _build_bland_altman(results)
+    ba_html = plotly.io.to_html(ba_fig, full_html=False, include_plotlyjs="cdn")
+
+    hm_fig = _build_sweep_heatmap(results)
+    hm_html = plotly.io.to_html(hm_fig, full_html=False, include_plotlyjs=False)
+
+    n_runs = len(results)
+    converged = sum(1 for r in results if r["td"].converged)
+
+    exp_rmse = f"{metrics.get('exponent_rmse', 0):.4f}"
+    off_rmse = f"{metrics.get('offset_rmse', 0):.4f}"
+    exp_bias = f"{metrics.get('exponent_bias', 0):.4f}"
+    off_bias = f"{metrics.get('offset_bias', 0):.4f}"
+    pk_rmse = f"{metrics.get('peak_center_rmse', 0):.3f}" if metrics.get('peak_center_rmse') is not None else "N/A"
+
+    tost_exp_str = "EQUIVALENT" if tost_exp["equivalent"] else "NOT equivalent"
+    tost_off_str = "EQUIVALENT" if tost_off["equivalent"] else "NOT equivalent"
+    tost_exp_color = "#27ae60" if tost_exp["equivalent"] else "#e74c3c"
+    tost_off_color = "#27ae60" if tost_off["equivalent"] else "#e74c3c"
+
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<title>Batch Equivalence Sweep — EEG SpecParam</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       max-width: 1100px; margin: 0 auto; padding: 20px; background: #f8f9fa; }}
+h1 {{ color: #2c3e50; margin-bottom: 5px; }}
+.subtitle {{ color: #7f8c8d; margin-bottom: 20px; }}
+.plot {{ background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+         margin-bottom: 20px; }}
+table {{ width: 100%; border-collapse: collapse; background: white; border-radius: 8px;
+         overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }}
+th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }}
+th {{ background: #2c3e50; color: white; }}
+.badge {{ display: inline-block; padding: 2px 10px; border-radius: 4px; color: white; font-weight: bold; }}
+a {{ color: #3498db; }}
+.controls {{ margin-bottom: 20px; }}
+.controls a {{ margin-right: 16px; padding: 8px 16px; background: #3498db; color: white;
+               text-decoration: none; border-radius: 4px; }}
+.controls a.active {{ background: #2c3e50; }}
+.controls a:hover {{ background: #2980b9; }}
+</style>
+</head>
+<body>
+<h1>Batch Equivalence Sweep</h1>
+<p class="subtitle">Bland-Altman analysis and parameter sweep across exponent x peak power</p>
+
+<div class="controls">
+  <a href="/">Single Simulation</a>
+  <a href="/sweep?mode=quick&seed={seed}" {"class='active'" if mode == "quick" else ""}>Quick Sweep</a>
+  <a href="/sweep?mode=full&seed={seed}" {"class='active'" if mode == "full" else ""}>Full Sweep</a>
+</div>
+
+<h3>Summary</h3>
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Sweep grid</td><td>{len(exponents)} exponents x {len(peak_powers)} peak powers = {n_runs} runs</td></tr>
+<tr><td>Convergence</td><td>{converged}/{n_runs} ({100*converged/n_runs:.0f}%)</td></tr>
+<tr><td>Exponent RMSE</td><td>{exp_rmse}</td></tr>
+<tr><td>Exponent bias</td><td>{exp_bias}</td></tr>
+<tr><td>Offset RMSE</td><td>{off_rmse}</td></tr>
+<tr><td>Offset bias</td><td>{off_bias}</td></tr>
+<tr><td>Peak center RMSE</td><td>{pk_rmse}</td></tr>
+<tr><td>TOST exponent (bound=0.2)</td>
+    <td><span class="badge" style="background:{tost_exp_color}">{tost_exp_str}</span>
+    p = {max(tost_exp['p_upper'], tost_exp['p_lower']):.4f}</td></tr>
+<tr><td>TOST offset (bound=0.3)</td>
+    <td><span class="badge" style="background:{tost_off_color}">{tost_off_str}</span>
+    p = {max(tost_off['p_upper'], tost_off['p_lower']):.4f}</td></tr>
+</table>
+
+<div class="plot">
+<h3>Bland-Altman Plots</h3>
+{ba_html}
+</div>
+
+<div class="plot">
+<h3>Parameter Space Heatmap</h3>
+{hm_html}
+</div>
 
 </body>
 </html>"""
