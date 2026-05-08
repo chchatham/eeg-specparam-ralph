@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .schemas import AperiodicParams, EEGSignal, PeriodicPeak, SpecParamResult
+from .schemas import AperiodicParams, EEGSignal, FitDiagnostics, PeriodicPeak, SpecParamResult
 from .timedomain_specparam import fit_time_domain_specparam
 
 
@@ -13,6 +13,7 @@ def fit_time_domain(
     min_peak_height: float = 0.1,
     peak_width_limits: tuple[float, float] = (0.5, 12.0),
     peak_threshold: float = 2.0,
+    method: str = "acf",
 ) -> SpecParamResult:
     """Run the time-domain SpecParam and return a SpecParamResult."""
 
@@ -25,6 +26,7 @@ def fit_time_domain(
         min_peak_height=min_peak_height,
         peak_width_limits=peak_width_limits,
         peak_threshold=peak_threshold,
+        method=method,
     )
 
     if result is None:
@@ -55,6 +57,16 @@ def fit_time_domain(
             )
         )
 
+    diagnostics = None
+    if "lags" in result:
+        diagnostics = FitDiagnostics(
+            lags=result["lags"],
+            empirical_acf=result["empirical_acf"],
+            model_acf=result["model_acf"],
+            acf_residual=result["acf_residual"],
+            fit_domain="acf",
+        )
+
     return SpecParamResult(
         aperiodic=aperiodic,
         peaks=peaks,
@@ -62,4 +74,5 @@ def fit_time_domain(
         frequency_range=freq_range,
         method="time_domain",
         converged=True,
+        diagnostics=diagnostics,
     )

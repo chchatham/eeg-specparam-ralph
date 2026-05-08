@@ -19,6 +19,15 @@ class PeriodicPeak:
 
 
 @dataclass
+class FitDiagnostics:
+    lags: np.ndarray
+    empirical_acf: np.ndarray
+    model_acf: np.ndarray
+    acf_residual: np.ndarray
+    fit_domain: str
+
+
+@dataclass
 class SpecParamResult:
     aperiodic: AperiodicParams
     peaks: list[PeriodicPeak]
@@ -26,6 +35,7 @@ class SpecParamResult:
     frequency_range: tuple[float, float]
     method: str
     converged: bool
+    diagnostics: FitDiagnostics | None = None
 
 
 @dataclass

@@ -40,7 +40,7 @@ def _generate_case(exponent, peaks, seed):
         aperiodic, peaks, sfreq=SFREQ, duration=DURATION, random_seed=seed,
     )
     spectral = fit_spectral_specparam(signal)
-    td = fit_time_domain(signal)
+    td = fit_time_domain(signal, method="psd")
     comp = compare_results(spectral, td)
     return spectral, td, comp
 
@@ -130,3 +130,80 @@ class TestBatchEquivalence:
         diffs = np.array([comp.offset_diff for _, _, comp in all_cases.values()])
         rmse = float(np.sqrt(np.mean(diffs**2)))
         assert rmse < 0.35, f"Offset RMSE {rmse:.4f} exceeds 0.35"
+
+
+# ---------------------------------------------------------------------------
+# Phase 8E: ACF equivalence sweep
+# ---------------------------------------------------------------------------
+
+ACF_EXPONENTS = [1.0, 1.25, 1.5, 1.75, 2.0]
+ACF_PEAK_CONFIGS = [
+    [],
+    [PeriodicPeak(center_frequency=10.0, power=0.5, bandwidth=2.0)],
+    [
+        PeriodicPeak(center_frequency=10.0, power=0.5, bandwidth=2.0),
+        PeriodicPeak(center_frequency=20.0, power=0.3, bandwidth=1.5),
+    ],
+]
+
+
+@pytest.fixture(scope="module")
+def acf_cases():
+    cache = {}
+    for exp in ACF_EXPONENTS:
+        for pi, peaks in enumerate(ACF_PEAK_CONFIGS):
+            seed = 200 + int(exp * 100) + pi
+            aperiodic = AperiodicParams(offset=0.0, exponent=exp)
+            signal = generate_eeg_signal(
+                aperiodic, peaks, sfreq=SFREQ, duration=DURATION, random_seed=seed,
+            )
+            td_acf = fit_time_domain(signal, method="acf")
+            spectral = fit_spectral_specparam(signal)
+            cache[(exp, pi)] = (spectral, td_acf, exp)
+    return cache
+
+
+class TestACFEquivalence:
+    @pytest.mark.parametrize("exponent", ACF_EXPONENTS)
+    @pytest.mark.parametrize("peak_idx", range(len(ACF_PEAK_CONFIGS)),
+                             ids=["0peaks", "1peak", "2peaks"])
+    def test_acf_convergence(self, acf_cases, exponent, peak_idx):
+        _, td, _ = acf_cases[(exponent, peak_idx)]
+        assert td.converged
+
+    @pytest.mark.parametrize("exponent", ACF_EXPONENTS)
+    @pytest.mark.parametrize("peak_idx", range(len(ACF_PEAK_CONFIGS)),
+                             ids=["0peaks", "1peak", "2peaks"])
+    def test_acf_exponent_vs_ground_truth(self, acf_cases, exponent, peak_idx):
+        _, td, true_exp = acf_cases[(exponent, peak_idx)]
+        assert td.converged
+        assert abs(td.aperiodic.exponent - true_exp) < 0.15, (
+            f"ACF exp={td.aperiodic.exponent:.3f} vs truth={true_exp}"
+        )
+
+    @pytest.mark.parametrize("exponent", ACF_EXPONENTS)
+    @pytest.mark.parametrize("peak_idx", range(len(ACF_PEAK_CONFIGS)),
+                             ids=["0peaks", "1peak", "2peaks"])
+    def test_acf_vs_spectral(self, acf_cases, exponent, peak_idx):
+        spec, td, _ = acf_cases[(exponent, peak_idx)]
+        if td.converged and spec.converged:
+            assert abs(td.aperiodic.exponent - spec.aperiodic.exponent) < 0.15
+
+    def test_acf_exponent_rmse(self, acf_cases):
+        errors = []
+        for (exp, _), (_, td, true_exp) in acf_cases.items():
+            if td.converged:
+                errors.append(td.aperiodic.exponent - true_exp)
+        rmse = float(np.sqrt(np.mean(np.array(errors) ** 2)))
+        assert rmse < 0.10, f"ACF exponent RMSE {rmse:.4f} exceeds 0.10"
+
+    def test_acf_convergence_rate(self, acf_cases):
+        n = len(acf_cases)
+        converged = sum(1 for _, td, _ in acf_cases.values() if td.converged)
+        assert converged / n >= 0.95
+
+    def test_acf_diagnostics_present(self, acf_cases):
+        for _, td, _ in acf_cases.values():
+            if td.converged:
+                assert td.diagnostics is not None
+                assert td.diagnostics.fit_domain == "acf"

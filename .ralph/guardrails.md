@@ -86,16 +86,71 @@ exponentiated Gaussian) are analytically grounded. When generalizing:
 - If an analytical form doesn't exist for a generalization, document the approximation
   used and its known limits.
 
-### 🚧 SIGN: ACF-based fitting is fundamentally limited for steep spectral slopes
-**Discovered in Phase 3B.** The original plan was to fit the time-domain model via ACF matching.
-This works for chi=1.0 but FAILS for chi >= 1.5 because the normalized ACF barely decays
-within the observation window (0.53 at 4 seconds for chi=2.0), giving insufficient shape info.
-Multiple ACF approaches were tried and abandoned:
+### 🚧 SIGN: ACF fitting requires long observation windows for steep spectral slopes
+**Discovered in Phase 3B, revised in Phase 8.** The original ACF approach failed for chi >= 1.5
+because the observation window was too short (0.5–4 sec), not because the method is fundamentally
+limited. With 30-second signals and max_lag=15 sec, even slowly-decaying ACFs (chi=2.0) show
+their full shape. The original failures were:
 1. Numerical cosine transform with fixed freq grid → scale mismatch
-2. irfft with signal's freq grid → optimizer finds wrong local minimum
-3. Normalized ACF fitting → works for chi=1.0, fails for chi >= 1.5
-**Solution:** Switched to PSD-based fitting in log10 space. This matches spectral SpecParam
-within 0.015 for exponent across the full sweep. Do NOT revisit ACF-based approaches.
+2. irfft with signal's freq grid → optimizer finds wrong local minimum at short lags
+3. Normalized ACF fitting with max_lag=0.5–4 sec → insufficient shape for chi >= 1.5
+**Key insight:** The issue was observation-window limited, not method-limited.
+**Rule:** Use adaptive max_lag = min(signal_length / sfreq / 2, 15.0). For signals shorter than
+~8 sec, ACF fitting for steep exponents may still be unreliable — fall back to PSD method.
+
+### 🚧 SIGN: ACF of log-additive PSD model requires IRFFT, not convolution
+**Discovered in Phase 8.** The original `timedomain_specparam_original.py` computed
+`np.convolve(aperiodic_acf, periodic_acf)`. This is mathematically wrong for the SpecParam model.
+The model is additive in log10-PSD: `log10(S) = aperiodic + peaks`, so in linear PSD:
+`S = 10^(aperiodic + peaks)` — the peaks are **multiplicative**, not additive.
+Convolution in ACF domain corresponds to multiplication in PSD domain (not exponentiation).
+**Correct approach:** Build the full linear model PSD, then IRFFT to get the model ACF.
+This is exact (no approximation) and works for any chi and any number of peaks.
+
+### 🚧 SIGN: Use numerical IRFFT for model ACF, not closed-form
+The original code used a closed-form Lorentzian ACF (only valid for chi=2). For arbitrary chi,
+no simple closed-form exists. The numerical approach — IRFFT of the model PSD on a dense rfft
+grid — is exact and general. **Must convert one-sided PSD → two-sided before irfft** (see sign
+above). Verify scaling: `R_model(0)` must equal `integral_0^{f_nyq} S_one(f) df` = `df * (S[0]/2 + sum(S[1:-1]) + S[-1]/2)` using trapezoidal rule, OR equivalently the variance of a signal drawn from this PSD.
+
+### 🚧 SIGN: Signal generation from model PSD requires correct amplitude scaling
+**Discovered in Phase 8A.** When synthesizing a signal with a prescribed PSD S(f) via IRFFT
+of random-phase spectrum, the rfft coefficient magnitudes must be:
+`|X[k]| = sqrt(n_fft * sfreq * S[k])` where S is in V²/Hz.
+Using `sqrt(S * sfreq / n_fft)` (off by factor n_fft) produces a signal with vanishingly
+small variance. This matters for ACF consistency tests and future signal generation utilities.
+
+### 🚧 SIGN: One-sided PSD must be converted to two-sided before np.fft.irfft
+**Discovered in Phase 8B.** `np.fft.irfft(a, n)` treats its input as DFT coefficients for
+the non-negative frequencies, and internally doubles non-DC/Nyquist bins during reconstruction
+(because `X[k] = conj(X[n-k])` for real signals). If you pass a **one-sided PSD** (which is
+already 2× the two-sided PSD for f > 0), the result is doubled.
+**Symptom:** `R_model(0) ≈ 2 × Var(signal)` when it should equal `Var(signal)`.
+**Fix:** Convert one-sided to two-sided before irfft: `S_two = S_one.copy(); S_two[1:-1] /= 2`.
+Verified: flat S_one=1 gives irfft*sfreq = 256 (wrong 2×), S_two gives 128 (correct = f_nyq).
+**Impact:** `_model_acf_via_irfft` and `_band_model_acf` in `_fit_acf_stages` both need this fix.
+Phase 8A tests `test_r0_equals_total_power` used the same wrong formula, so they pass despite the bug.
+
+### 🚧 SIGN: Band-limit both ACFs to freq_range to avoid sub-Hz mismatch
+**Discovered in Phase 8B.** The signal generator uses a no-knee model (`b - chi*log10(f)`,
+which diverges as f→0), but the fitter uses a knee model (`b - log10(k + f^chi)`, which
+levels off). In the PSD domain this doesn't matter (fit range = [1, 40] Hz), but the
+full-band ACF integrates over all frequencies including sub-Hz. Result: empirical ACF
+decays ~2× slower than model ACF with correct parameters (rho_emp(0.5s) = 0.75 vs
+rho_model(0.5s) = 0.49), pushing chi to upper bound.
+**Fix:** Zero out frequencies outside `freq_range` in both `|X|^2` (empirical) and
+`S_model` (model) before IRFFT. This makes both ACFs see the same frequency band.
+
+### 🚧 SIGN: ACF chi estimation requires PSD-refined initialization
+**Discovered in Phase 8B.** The SpecParam model is log-additive in PSD: `log10(S) = aperiodic + peaks`.
+This makes aperiodic and periodic components cleanly separable in log-PSD domain. In the ACF domain,
+the model becomes multiplicative: `S = 10^(aperiodic) * 10^(peaks)`. This breaks separability — the
+ACF residual landscape has its minimum at a different chi than the true value when peaks are present.
+**Symptom:** Joint ACF fit overestimates chi by 0.2–0.8 when peaks are present.
+**Fix:** Run a joint PSD fit (aperiodic + peaks) before ACF fitting to get a refined chi_init.
+Use strong regularization (weight=30) toward this PSD-refined chi in the ACF stage.
+**Corollary:** Fitting only long lags (where peaks have decayed) doesn't work because
+band-limited ACFs have insufficient information at long lags.
 
 ### 🚧 SIGN: Edge guards needed in peak detection
 **Discovered in Phase 3C.** Iterative peak detection from the flattened residual can find

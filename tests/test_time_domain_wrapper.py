@@ -132,6 +132,110 @@ class TestMultiPeak:
         assert abs(td.aperiodic.exponent - spectral.aperiodic.exponent) < 0.2
 
 
+class TestACFFitting:
+    """Phase 8D: ACF-specific fitting tests."""
+
+    @pytest.mark.parametrize("exp", [1.0, 1.5, 2.0])
+    def test_acf_convergence(self, exp):
+        peak = PeriodicPeak(center_frequency=10.0, power=0.5, bandwidth=2.0)
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=exp), [peak], seed=42)
+        result = fit_time_domain(sig, method="acf")
+        assert result.converged
+
+    @pytest.mark.parametrize("exp", [1.0, 1.5, 2.0])
+    def test_acf_exponent_recovery(self, exp):
+        peak = PeriodicPeak(center_frequency=10.0, power=0.5, bandwidth=2.0)
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=exp), [peak], seed=42)
+        result = fit_time_domain(sig, method="acf")
+        assert result.converged
+        assert abs(result.aperiodic.exponent - exp) < 0.15, (
+            f"ACF exp recovery: got {result.aperiodic.exponent:.3f}, expected {exp}")
+
+    def test_acf_no_peaks(self):
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=1.5), duration=30)
+        result = fit_time_domain(sig, method="acf")
+        assert result.converged
+        assert abs(result.aperiodic.exponent - 1.5) < 0.15
+
+    def test_acf_peak_detection(self):
+        peak = PeriodicPeak(center_frequency=10.0, power=0.5, bandwidth=2.0)
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=1.5), [peak])
+        result = fit_time_domain(sig, method="acf")
+        assert result.converged
+        assert len(result.peaks) >= 1
+        near_10 = any(abs(p.center_frequency - 10.0) < 3.0 for p in result.peaks)
+        assert near_10
+
+    def test_acf_r_squared(self):
+        peak = PeriodicPeak(center_frequency=10.0, power=0.5, bandwidth=2.0)
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=1.5), [peak])
+        result = fit_time_domain(sig, method="acf")
+        assert result.r_squared is not None
+        assert result.r_squared > 0.3
+
+
+class TestACFResiduals:
+    """Phase 8D: Diagnostics arrays present and correct shape."""
+
+    def test_diagnostics_present(self):
+        peak = PeriodicPeak(center_frequency=10.0, power=0.5, bandwidth=2.0)
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=1.5), [peak])
+        result = fit_time_domain(sig, method="acf")
+        assert result.diagnostics is not None
+        assert result.diagnostics.fit_domain == "acf"
+
+    def test_diagnostics_shapes(self):
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=1.5), duration=30)
+        result = fit_time_domain(sig, method="acf")
+        d = result.diagnostics
+        assert d is not None
+        assert len(d.lags) == len(d.empirical_acf)
+        assert len(d.lags) == len(d.model_acf)
+        assert len(d.lags) == len(d.acf_residual)
+
+    def test_acf_residual_is_difference(self):
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=1.5), duration=30)
+        result = fit_time_domain(sig, method="acf")
+        d = result.diagnostics
+        np.testing.assert_allclose(
+            d.acf_residual, d.empirical_acf - d.model_acf, atol=1e-10)
+
+    def test_psd_method_no_diagnostics(self):
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=1.5))
+        result = fit_time_domain(sig, method="psd")
+        assert result.diagnostics is None
+
+    def test_lags_start_at_zero(self):
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=1.5), duration=30)
+        result = fit_time_domain(sig, method="acf")
+        assert result.diagnostics.lags[0] == 0.0
+
+    def test_acf_positive_at_zero_lag(self):
+        sig = _make_signal(AperiodicParams(offset=0.0, exponent=1.5), duration=30)
+        result = fit_time_domain(sig, method="acf")
+        assert result.diagnostics.empirical_acf[0] > 0
+        assert result.diagnostics.model_acf[0] > 0
+
+
+class TestLongLag:
+    """Phase 8D: Long signals benefit ACF fitting."""
+
+    def test_long_signal_better_recovery(self):
+        """30-sec signal should recover exponent better than 4-sec signal."""
+        peak = PeriodicPeak(center_frequency=10.0, power=0.5, bandwidth=2.0)
+        ap = AperiodicParams(offset=0.0, exponent=1.5)
+
+        sig_short = _make_signal(ap, [peak], duration=4, seed=42)
+        sig_long = _make_signal(ap, [peak], duration=30, seed=42)
+
+        r_short = fit_time_domain(sig_short, method="acf")
+        r_long = fit_time_domain(sig_long, method="acf")
+
+        assert r_long.converged
+        err_long = abs(r_long.aperiodic.exponent - 1.5)
+        assert err_long < 0.2, f"Long signal ACF error too high: {err_long:.3f}"
+
+
 class TestBaselineComparison:
     """Record baseline discrepancies between spectral and time-domain."""
 

@@ -100,6 +100,45 @@ def _build_psd_plot(freqs, psd, spectral, td):
     return fig
 
 
+def _build_acf_plot(td_acf):
+    if not td_acf.converged or td_acf.diagnostics is None:
+        return None
+
+    d = td_acf.diagnostics
+    max_plot_lag = min(len(d.lags), int(2.0 * (1.0 / d.lags[1])) if d.lags[1] > 0 else 512)
+    lags = d.lags[:max_plot_lag]
+    emp = d.empirical_acf[:max_plot_lag]
+    model = d.model_acf[:max_plot_lag]
+    resid = d.acf_residual[:max_plot_lag]
+
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, row_heights=[0.7, 0.3],
+                        vertical_spacing=0.08)
+
+    fig.add_trace(go.Scatter(
+        x=lags, y=emp, mode="lines", name="Empirical ACF",
+        line=dict(color="gray", width=1),
+    ), row=1, col=1)
+    fig.add_trace(go.Scatter(
+        x=lags, y=model, mode="lines", name="Model ACF",
+        line=dict(color="red", width=2, dash="dash"),
+    ), row=1, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=lags, y=resid, mode="lines", name="Residual",
+        line=dict(color="#27ae60", width=1),
+    ), row=2, col=1)
+    fig.add_hline(y=0, line_dash="dot", line_color="gray", row=2, col=1)
+
+    fig.update_xaxes(title_text="Lag (sec)", row=2, col=1)
+    fig.update_yaxes(title_text="Autocovariance", row=1, col=1)
+    fig.update_yaxes(title_text="Residual", row=2, col=1)
+    fig.update_layout(
+        height=450, margin=dict(l=60, r=20, t=30, b=50),
+        legend=dict(x=0.65, y=0.95),
+    )
+    return fig
+
+
 def _build_comparison_table(spectral, td, comp):
     rows = []
     rows.append(f"<tr><td>Exponent</td><td>{spectral.aperiodic.exponent:.4f}</td>"
@@ -149,6 +188,9 @@ def dashboard(
 
     psd_fig = _build_psd_plot(freqs, psd, spectral, td)
     psd_html = plotly.io.to_html(psd_fig, full_html=False, include_plotlyjs="cdn")
+
+    acf_fig = _build_acf_plot(td)
+    acf_html = plotly.io.to_html(acf_fig, full_html=False, include_plotlyjs=False) if acf_fig else ""
 
     table_html = _build_comparison_table(spectral, td, comp)
 
@@ -219,6 +261,8 @@ button:hover {{ background: #2980b9; }}
 <h3>Power Spectral Density</h3>
 {psd_html}
 </div>
+
+{f'<div class="plot"><h3>Autocovariance (ACF Fit)</h3>{acf_html}</div>' if acf_html else ''}
 
 <h3>Parameter Comparison</h3>
 <table>
