@@ -1,7 +1,7 @@
 # Progress
 
 ## Last Updated
-Iteration 6 — Bland-Altman plot, sweep heatmap, and regression test suite added.
+Iteration 8 — Phase 7 complete: API parity & export.
 
 ## What Exists
 - `pyproject.toml`, `src/__init__.py`, `tests/__init__.py`
@@ -15,10 +15,10 @@ Iteration 6 — Bland-Altman plot, sweep heatmap, and regression test suite adde
 - `src/app.py` — FastAPI web UI with Plotly PSD plot + parameter comparison table
 - `Dockerfile` — Python 3.12-slim, pip install, expose 8000
 - `railway.toml` — DOCKERFILE builder, healthcheck at /health, PORT env var
-- Tests: 123 total, all passing
+- Tests: 128 total, all passing
   - test_eeg_generator.py (25), test_spectral_specparam.py (13)
   - test_time_domain_wrapper.py (17), test_comparison.py (8)
-  - test_regression_equivalence.py (60) — full parameter sweep regression suite
+  - test_regression_equivalence.py (65) — full parameter sweep regression suite (module-scoped fixture cache)
 
 ## Current Agreement (across exponent sweep)
 | Metric         | Value   |
@@ -40,17 +40,23 @@ Nothing — all tests pass. App runs locally on port 8000/8001.
 20. Switched from ACF-based to PSD-based fitting for time-domain — ACF approach fails for chi >= 1.5.
 21. specparam v2.0 API: `SpectralModel`, metrics via `metrics=["gof_rsquared"]`, peak settings via `algorithm_settings` dict.
 
+## Decisions Made (continued)
+22. Spectral BW = 2*sigma; our PeriodicPeak.bandwidth stores sigma. Divide by 2 when extracting from specparam.
+23. Shared CSS via `_BASE_CSS` constant in app.py; page-specific rules appended per template.
+24. PSD plot reconstruction uses `compute_target_psd()` instead of manual formula — single source of truth.
+25. `peak_width_limits` and `peak_threshold` exposed as kwargs with defaults matching prior hardcoded values (0.5–12.0 Hz, 2.0×noise). Stage 3 refit bounds also use these limits.
+
 ## Known Issues
-- Peak bandwidth ~2x different from spectral SpecParam (different fitting methodology)
 - Spectral SpecParam detects more spurious noise peaks than TD (TD is closer to ground truth peak count)
-- Not yet deployed to Railway (config is ready, needs `railway up`)
-- No README yet
 
 ## Current Focus
-**Remaining work to complete all phases:**
-1. Deploy to Railway (Phase 6) — needs `railway up` with auth
-2. Write README with deployment instructions (Phase 6)
+**Deploy to Railway** — the only remaining unchecked item.
+
+## What was done in Iteration 8
+- Added `peak_width_limits` and `peak_threshold` params to `fit_time_domain_specparam()`, threaded to `_detect_peaks` and Stage 3 refit bounds
+- Added same params to `fit_time_domain()` wrapper, threaded through
+- Populated `src/__init__.py` with all public API exports (14 symbols)
+- All 128 tests pass, smoke test with custom peak params confirmed working
 
 ## Next Steps
-1. Deploy to Railway with `railway up`
-2. Write README with deployment instructions
+1. Deploy updated code to Railway (only unchecked checkbox remaining)

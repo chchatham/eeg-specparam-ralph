@@ -100,5 +100,11 @@ output. The provided code is a working prototype with known limitations to addre
 - Web framework: FastAPI + Plotly (decided)
 - Deployment: Docker → Railway
 
+### Phase 7: API Parity & Export
+- [x] Thread `peak_width_limits` and `peak_threshold` through `fit_time_domain_specparam` → `_detect_peaks`
+- [x] Thread `peak_width_limits` and `peak_threshold` through `fit_time_domain` wrapper
+- [x] Populate `src/__init__.py` with public API exports (functions + schema types)
+- [x] Verify: all tests pass, smoke test with custom peak params
+
 ## Current Focus
-Remaining items: Bland-Altman plot, sweep heatmap, Railway deployment, README, final regression suite.
+Phase 7 complete. Only remaining item: deploy to Railway.

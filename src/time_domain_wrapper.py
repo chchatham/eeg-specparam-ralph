@@ -11,6 +11,8 @@ def fit_time_domain(
     max_lag_sec: float = 1.0,
     max_n_peaks: int = 6,
     min_peak_height: float = 0.1,
+    peak_width_limits: tuple[float, float] = (0.5, 12.0),
+    peak_threshold: float = 2.0,
 ) -> SpecParamResult:
     """Run the time-domain SpecParam and return a SpecParamResult."""
 
@@ -21,6 +23,8 @@ def fit_time_domain(
         freq_range=freq_range,
         max_n_peaks=max_n_peaks,
         min_peak_height=min_peak_height,
+        peak_width_limits=peak_width_limits,
+        peak_threshold=peak_threshold,
     )
 
     if result is None:

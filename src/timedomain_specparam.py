@@ -74,7 +74,9 @@ def _r_squared(observed: np.ndarray, predicted: np.ndarray) -> float | None:
 
 def fit_time_domain_specparam(time_series, sfreq, max_lag_sec=1.0,
                               freq_range=(1.0, 40.0), max_n_peaks=6,
-                              min_peak_height=0.1):
+                              min_peak_height=0.1,
+                              peak_width_limits=(0.5, 12.0),
+                              peak_threshold=2.0):
     """
     Fit the time-domain specparam model to a time series.
 
@@ -121,6 +123,9 @@ def fit_time_domain_specparam(time_series, sfreq, max_lag_sec=1.0,
     detected_peaks = _detect_peaks(
         freqs_fit, residual,
         min_peak_height=min_peak_height,
+        min_peak_width=peak_width_limits[0],
+        max_peak_width=peak_width_limits[1],
+        peak_threshold=peak_threshold,
         max_n_peaks=max_n_peaks,
     )
 
@@ -147,8 +152,8 @@ def fit_time_domain_specparam(time_series, sfreq, max_lag_sec=1.0,
     upper = [10.0, 50.0, 3.0]
     for a_pk, c_pk, w_pk in detected_peaks:
         p0.extend([a_pk, c_pk, w_pk])
-        lower.extend([0.0, freq_range[0], 0.5])
-        upper.extend([3.0, freq_range[1], 12.0])
+        lower.extend([0.0, freq_range[0], peak_width_limits[0]])
+        upper.extend([3.0, freq_range[1], peak_width_limits[1]])
 
     try:
         with warnings.catch_warnings():
