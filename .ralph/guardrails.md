@@ -110,6 +110,13 @@ of the freq_range boundaries. This fixed exponent recovery for exp=1.0 (was 1.22
 - `sm.get_params('aperiodic')` → fixed mode: `[offset, exponent]`, knee mode: `[offset, knee, exponent]`
 - `sm.get_params('peak')` → shape `(n_peaks, 3)`: `[center_freq, power, bandwidth]`
 
+### 🚧 SIGN: specparam reports bandwidth as 2*sigma, not sigma
+`sm.get_params('peak')` returns `[CF, PW, BW]` where **BW = 2 × standard deviation**.
+Our `PeriodicPeak.bandwidth` schema stores sigma (std dev). So when extracting from
+specparam, always divide by 2: `bandwidth = float(row[2]) / 2.0`.
+The time-domain fitter uses sigma natively — no conversion needed there.
+Forgetting this makes the spectral PSD overlay ~2x too wide and breaks bandwidth comparisons.
+
 ### 🚧 SIGN: DC component zeroing must be conditional
 In `compute_target_psd()`, only zero out `psd[0]` when `freqs[0] == 0.0`.
 Unconditionally zeroing `psd[0]` corrupts the lowest non-DC frequency bin if the

@@ -1,4 +1,4 @@
-"""Final regression test suite for spectral ↔ time-domain equivalence.
+"""Final regression test suite for spectral - time-domain equivalence.
 
 Runs both pipelines across a grid of synthetic signals with known ground truth
 and asserts agreement within defined tolerances.
@@ -45,23 +45,29 @@ def _generate_case(exponent, peaks, seed):
     return spectral, td, comp
 
 
+@pytest.fixture(scope="module")
+def all_cases():
+    cache = {}
+    for exp in EXPONENTS:
+        for pi, peaks in enumerate(PEAK_CONFIGS):
+            seed = BASE_SEED + int(exp * 100) + pi
+            cache[(exp, pi)] = _generate_case(exp, peaks, seed)
+    return cache
+
+
 class TestRegressionEquivalence:
     @pytest.mark.parametrize("exponent", EXPONENTS)
     @pytest.mark.parametrize("peak_idx", range(len(PEAK_CONFIGS)),
                              ids=["0peaks", "1peak", "2peaks"])
-    def test_convergence(self, exponent, peak_idx):
-        _, td, _ = _generate_case(exponent, PEAK_CONFIGS[peak_idx],
-                                  seed=BASE_SEED + int(exponent * 100) + peak_idx)
+    def test_convergence(self, exponent, peak_idx, all_cases):
+        _, td, _ = all_cases[(exponent, peak_idx)]
         assert td.converged, f"TD failed to converge for exp={exponent}, peaks={peak_idx}"
 
     @pytest.mark.parametrize("exponent", EXPONENTS)
     @pytest.mark.parametrize("peak_idx", range(len(PEAK_CONFIGS)),
                              ids=["0peaks", "1peak", "2peaks"])
-    def test_exponent_agreement(self, exponent, peak_idx):
-        spectral, td, comp = _generate_case(
-            exponent, PEAK_CONFIGS[peak_idx],
-            seed=BASE_SEED + int(exponent * 100) + peak_idx,
-        )
+    def test_exponent_agreement(self, exponent, peak_idx, all_cases):
+        spectral, td, comp = all_cases[(exponent, peak_idx)]
         assert abs(comp.exponent_diff) < EXP_TOLERANCE, (
             f"Exponent diff {comp.exponent_diff:.4f} exceeds {EXP_TOLERANCE} "
             f"(spectral={spectral.aperiodic.exponent:.4f}, td={td.aperiodic.exponent:.4f})"
@@ -70,80 +76,57 @@ class TestRegressionEquivalence:
     @pytest.mark.parametrize("exponent", EXPONENTS)
     @pytest.mark.parametrize("peak_idx", range(len(PEAK_CONFIGS)),
                              ids=["0peaks", "1peak", "2peaks"])
-    def test_offset_agreement(self, exponent, peak_idx):
-        _, _, comp = _generate_case(
-            exponent, PEAK_CONFIGS[peak_idx],
-            seed=BASE_SEED + int(exponent * 100) + peak_idx,
-        )
+    def test_offset_agreement(self, exponent, peak_idx, all_cases):
+        _, _, comp = all_cases[(exponent, peak_idx)]
         assert abs(comp.offset_diff) < OFFSET_TOLERANCE, (
             f"Offset diff {comp.offset_diff:.4f} exceeds {OFFSET_TOLERANCE}"
         )
 
     @pytest.mark.parametrize("exponent", EXPONENTS)
-    def test_peak_center_agreement(self, exponent):
-        peaks = PEAK_CONFIGS[1]
-        _, _, comp = _generate_case(
-            exponent, peaks,
-            seed=BASE_SEED + int(exponent * 100) + 1,
-        )
+    @pytest.mark.parametrize("peak_idx", [1, 2], ids=["1peak", "2peaks"])
+    def test_peak_center_agreement(self, exponent, peak_idx, all_cases):
+        _, _, comp = all_cases[(exponent, peak_idx)]
         for i, cd in enumerate(comp.peak_center_diffs):
             assert abs(cd) < PEAK_CENTER_TOLERANCE, (
                 f"Peak {i} center diff {cd:.3f} Hz exceeds {PEAK_CENTER_TOLERANCE} Hz"
             )
 
     @pytest.mark.parametrize("exponent", EXPONENTS)
-    def test_r_squared_acceptable(self, exponent):
-        peaks = PEAK_CONFIGS[1]
-        _, td, _ = _generate_case(
-            exponent, peaks,
-            seed=BASE_SEED + int(exponent * 100) + 1,
-        )
+    def test_r_squared_acceptable(self, exponent, all_cases):
+        _, td, _ = all_cases[(exponent, 1)]
         assert td.r_squared is not None and td.r_squared > 0.85, (
             f"TD r_squared {td.r_squared} below 0.85 for exp={exponent}"
         )
 
 
 class TestBatchEquivalence:
-    @pytest.fixture(scope="class")
-    def sweep_results(self):
-        results = []
-        for exp in EXPONENTS:
-            for pi, peaks in enumerate(PEAK_CONFIGS):
-                seed = BASE_SEED + int(exp * 100) + pi
-                spectral, td, comp = _generate_case(exp, peaks, seed)
-                results.append({
-                    "exponent": exp, "peak_idx": pi,
-                    "spectral": spectral, "td": td, "comp": comp,
-                })
-        return results
-
-    def test_convergence_rate(self, sweep_results):
-        converged = sum(1 for r in sweep_results if r["td"].converged)
-        rate = converged / len(sweep_results)
+    def test_convergence_rate(self, all_cases):
+        converged = sum(1 for (_, td, _) in all_cases.values() if td.converged)
+        rate = converged / len(all_cases)
         assert rate >= 0.95, f"Convergence rate {rate:.1%} below 95%"
 
-    def test_tost_exponent(self, sweep_results):
-        diffs = np.array([r["comp"].exponent_diff for r in sweep_results])
+    def test_tost_exponent(self, all_cases):
+        diffs = np.array([comp.exponent_diff for _, _, comp in all_cases.values()])
         result = tost_equivalence(diffs, bound=0.3)
         assert result["equivalent"], (
             f"TOST exponent failed: mean_diff={result['mean_diff']:.4f}, "
             f"p={max(result['p_upper'], result['p_lower']):.4f}"
         )
 
-    def test_tost_offset(self, sweep_results):
-        diffs = np.array([r["comp"].offset_diff for r in sweep_results])
+    def test_tost_offset(self, all_cases):
+        diffs = np.array([comp.offset_diff for _, _, comp in all_cases.values()])
         result = tost_equivalence(diffs, bound=0.4)
         assert result["equivalent"], (
             f"TOST offset failed: mean_diff={result['mean_diff']:.4f}, "
             f"p={max(result['p_upper'], result['p_lower']):.4f}"
         )
 
-    def test_exponent_rmse(self, sweep_results):
-        diffs = np.array([r["comp"].exponent_diff for r in sweep_results])
+    def test_exponent_rmse(self, all_cases):
+        diffs = np.array([comp.exponent_diff for _, _, comp in all_cases.values()])
         rmse = float(np.sqrt(np.mean(diffs**2)))
         assert rmse < 0.2, f"Exponent RMSE {rmse:.4f} exceeds 0.2"
 
-    def test_offset_rmse(self, sweep_results):
-        diffs = np.array([r["comp"].offset_diff for r in sweep_results])
+    def test_offset_rmse(self, all_cases):
+        diffs = np.array([comp.offset_diff for _, _, comp in all_cases.values()])
         rmse = float(np.sqrt(np.mean(diffs**2)))
         assert rmse < 0.35, f"Offset RMSE {rmse:.4f} exceeds 0.35"

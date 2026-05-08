@@ -9,12 +9,29 @@ from fastapi.responses import HTMLResponse
 from scipy.signal import welch
 
 from .schemas import AperiodicParams, PeriodicPeak
-from .eeg_generator import generate_eeg_signal
+from .eeg_generator import compute_target_psd, generate_eeg_signal
 from .spectral_specparam import fit_spectral_specparam
 from .time_domain_wrapper import fit_time_domain
 from .comparison import compare_results, compute_agreement_metrics, tost_equivalence
 
 app = FastAPI(title="EEG SpecParam Equivalence Simulator")
+
+_BASE_CSS = """\
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       max-width: 1100px; margin: 0 auto; padding: 20px; background: #f8f9fa; }}
+h1 {{ color: #2c3e50; margin-bottom: 5px; }}
+.subtitle {{ color: #7f8c8d; margin-bottom: 20px; }}
+.plot {{ background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+         margin-bottom: 20px; }}
+table {{ width: 100%; border-collapse: collapse; background: white; border-radius: 8px;
+         overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }}
+th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }}
+th {{ background: #2c3e50; color: white; }}
+.controls {{ margin-bottom: 20px; }}
+.controls a {{ margin-right: 16px; padding: 8px 16px; background: #3498db; color: white;
+               text-decoration: none; border-radius: 4px; }}
+.controls a.active {{ background: #2c3e50; }}
+.controls a:hover {{ background: #2980b9; }}"""
 
 
 @app.get("/health")
@@ -61,25 +78,16 @@ def _build_psd_plot(freqs, psd, spectral, td):
     mask = (freqs >= 1) & (freqs <= 40)
     f_fit = freqs[mask]
 
-    # Spectral model curve
-    sp = spectral.aperiodic
-    log_spec = sp.offset - sp.exponent * np.log10(np.maximum(f_fit, 0.01))
-    for pk in spectral.peaks:
-        log_spec = log_spec + pk.power * np.exp(-((f_fit - pk.center_frequency)**2) / (2 * pk.bandwidth**2))
+    spec_psd = compute_target_psd(f_fit, spectral.aperiodic, spectral.peaks)
     fig.add_trace(go.Scatter(
-        x=f_fit, y=10**log_spec, mode="lines", name="Spectral SpecParam",
+        x=f_fit, y=spec_psd, mode="lines", name="Spectral SpecParam",
         line=dict(color="blue", width=2),
     ))
 
-    # Time-domain model curve
     if td.converged:
-        tp = td.aperiodic
-        k = tp.knee if tp.knee is not None else 0
-        log_td = tp.offset - np.log10(np.maximum(k, 1e-12) + f_fit**tp.exponent)
-        for pk in td.peaks:
-            log_td = log_td + pk.power * np.exp(-((f_fit - pk.center_frequency)**2) / (2 * pk.bandwidth**2))
+        td_psd = compute_target_psd(f_fit, td.aperiodic, td.peaks)
         fig.add_trace(go.Scatter(
-            x=f_fit, y=10**log_td, mode="lines", name="Time-Domain SpecParam",
+            x=f_fit, y=td_psd, mode="lines", name="Time-Domain SpecParam",
             line=dict(color="red", width=2, dash="dash"),
         ))
 
@@ -149,10 +157,7 @@ def dashboard(
 <head>
 <title>EEG SpecParam Equivalence Simulator</title>
 <style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-       max-width: 1100px; margin: 0 auto; padding: 20px; background: #f8f9fa; }}
-h1 {{ color: #2c3e50; margin-bottom: 5px; }}
-.subtitle {{ color: #7f8c8d; margin-bottom: 20px; }}
+{_BASE_CSS}
 form {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         margin-bottom: 20px; }}
 .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }}
@@ -162,18 +167,17 @@ form {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 
 button {{ background: #3498db; color: white; border: none; padding: 10px 24px;
           border-radius: 4px; cursor: pointer; font-size: 1em; margin-top: 12px; }}
 button:hover {{ background: #2980b9; }}
-.plot {{ background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-         margin-bottom: 20px; }}
-table {{ width: 100%; border-collapse: collapse; background: white; border-radius: 8px;
-         overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
-th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }}
-th {{ background: #2c3e50; color: white; }}
 </style>
 </head>
 <body>
 <h1>EEG SpecParam Equivalence Simulator</h1>
-<p class="subtitle">Compare spectral and time-domain SpecParam on synthetic EEG
- — <a href="/sweep">Batch Equivalence Sweep</a></p>
+<p class="subtitle">Compare spectral and time-domain SpecParam on synthetic EEG</p>
+
+<div class="controls">
+  <a href="/" class="active">Single Simulation</a>
+  <a href="/sweep?mode=quick">Quick Sweep</a>
+  <a href="/sweep?mode=full">Full Sweep</a>
+</div>
 
 <form method="get">
 <div class="grid">
@@ -226,26 +230,17 @@ th {{ background: #2c3e50; color: white; }}
 </html>"""
 
 
-def _run_sweep(
-    exponents: list[float],
-    peak_powers: list[float],
-    peak_center: float = 10.0,
-    peak_bw: float = 2.0,
-    sfreq: float = 256.0,
-    duration: float = 10.0,
-    offset: float = 1.5,
-    base_seed: int = 42,
-):
+def _run_sweep(exponents: list[float], peak_powers: list[float], base_seed: int = 42):
     results = []
     for i, exp in enumerate(exponents):
         for j, pp in enumerate(peak_powers):
-            aperiodic = AperiodicParams(offset=offset, exponent=exp)
+            aperiodic = AperiodicParams(offset=1.5, exponent=exp)
             peaks = []
             if pp > 0:
-                peaks = [PeriodicPeak(center_frequency=peak_center, power=pp, bandwidth=peak_bw)]
+                peaks = [PeriodicPeak(center_frequency=10.0, power=pp, bandwidth=2.0)]
 
             signal = generate_eeg_signal(
-                aperiodic, peaks, sfreq=sfreq, duration=duration,
+                aperiodic, peaks, sfreq=256.0, duration=10.0,
                 random_seed=base_seed + i * 100 + j,
             )
             spectral = fit_spectral_specparam(signal)
@@ -321,9 +316,10 @@ def _build_sweep_heatmap(results: list[dict]):
     exp_diff_grid = np.full((len(peak_powers), len(exponents)), np.nan)
     off_diff_grid = np.full((len(peak_powers), len(exponents)), np.nan)
 
+    pp_idx = {p: i for i, p in enumerate(peak_powers)}
+    exp_idx = {e: j for j, e in enumerate(exponents)}
     for r in results:
-        i = peak_powers.index(r["peak_power"])
-        j = exponents.index(r["exponent"])
+        i, j = pp_idx[r["peak_power"]], exp_idx[r["exponent"]]
         exp_diff_grid[i, j] = abs(r["comp"].exponent_diff)
         off_diff_grid[i, j] = abs(r["comp"].offset_diff)
 
@@ -400,29 +396,15 @@ def sweep_page(
     return f"""<!DOCTYPE html>
 <html>
 <head>
-<title>Batch Equivalence Sweep — EEG SpecParam</title>
+<title>EEG SpecParam Equivalence Simulator</title>
 <style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-       max-width: 1100px; margin: 0 auto; padding: 20px; background: #f8f9fa; }}
-h1 {{ color: #2c3e50; margin-bottom: 5px; }}
-.subtitle {{ color: #7f8c8d; margin-bottom: 20px; }}
-.plot {{ background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-         margin-bottom: 20px; }}
-table {{ width: 100%; border-collapse: collapse; background: white; border-radius: 8px;
-         overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }}
-th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }}
-th {{ background: #2c3e50; color: white; }}
+{_BASE_CSS}
 .badge {{ display: inline-block; padding: 2px 10px; border-radius: 4px; color: white; font-weight: bold; }}
 a {{ color: #3498db; }}
-.controls {{ margin-bottom: 20px; }}
-.controls a {{ margin-right: 16px; padding: 8px 16px; background: #3498db; color: white;
-               text-decoration: none; border-radius: 4px; }}
-.controls a.active {{ background: #2c3e50; }}
-.controls a:hover {{ background: #2980b9; }}
 </style>
 </head>
 <body>
-<h1>Batch Equivalence Sweep</h1>
+<h1>EEG SpecParam Equivalence Simulator</h1>
 <p class="subtitle">Bland-Altman analysis and parameter sweep across exponent x peak power</p>
 
 <div class="controls">
