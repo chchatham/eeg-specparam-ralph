@@ -69,7 +69,7 @@ def fit_spectral_specparam(
                 PeriodicPeak(
                     center_frequency=float(row[0]),
                     power=float(row[1]),
-                    bandwidth=float(row[2]),
+                    bandwidth=float(row[2]) / 2.0,
                 )
             )
 
