@@ -2,7 +2,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY pyproject.toml .
 RUN pip install --no-cache-dir \
     "numpy>=1.24,<2.1" \
     "scipy>=1.10,<1.15" \
@@ -13,8 +12,8 @@ RUN pip install --no-cache-dir \
     "uvicorn>=0.20,<1.0"
 
 COPY src/ src/
-COPY tests/ tests/
 
+ENV PORT=8000
 EXPOSE 8000
 
-CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD uvicorn src.app:app --host 0.0.0.0 --port $PORT --log-level info
