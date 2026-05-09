@@ -158,5 +158,68 @@ for any chi, no closed-form needed). Fit by minimizing ||R_empirical - R_model||
 - [x] Full test suite passes (213 tests)
 - [x] Update guardrails and progress files
 
+### Phase 9: Overview Landing Page & Simulator Enhancements
+**Context:** The app drops users into a parameter form with no context. Wrap the simulator
+in a scholarly-but-accessible HTML report as a landing page, enhance the simulator with
+auto-compute and wider parameter ranges, and add example configurations that link into it.
+
+**9A: Route restructuring & shared navigation**
+- [x] Extract `_nav_html(active: str)` helper for consistent nav bar across all pages
+- [x] Move current `dashboard()` from `GET /` to `GET /simulate` (rename to `simulate_page()`)
+- [x] Update nav links in `sweep_page()` to use `_nav_html`
+- [x] Verify: all existing routes still work at new paths, 213 tests still pass
+
+**9B: JSON API for AJAX auto-compute**
+- [x] Add `GET /simulate/compute` endpoint returning JSON: `{psd_plot, acf_plot, table_html, converged}`
+- [x] Uses `plotly.io.to_json()` for plot data, existing `_build_comparison_table()` for HTML fragment
+- [x] Verify: endpoint returns valid JSON for default params
+
+**9C: Simulator AJAX interactivity**
+- [x] Add JavaScript to `/simulate` page: `input` event listeners on all fields with 500ms debounce
+- [x] Fetch `/simulate/compute?...` on change, update plots via `Plotly.react()` (no page reload)
+- [x] `AbortController` to cancel in-flight requests when new params arrive
+- [x] Loading spinner overlay on plots during fetch
+- [x] `history.replaceState()` to keep URL shareable
+- [x] Graceful fallback: form still works with `method="get"` if JS disabled
+
+**9D: Enhanced input controls & parameter ranges**
+- [x] Replace `<input type="number">` with paired range slider + number input (synced via JS)
+- [x] Expand ranges: sfreq 128–1024, duration 2–120, peak centers 1–50, peak BW 0.5–12, seed 0–99999
+- [x] Add Peak 3 fields (shown when n_peaks >= 3): center=40Hz, power=0.4, bw=2.0
+- [x] Defaults unchanged (exponent=1.5, offset=1.5, n_peaks=1, alpha peak at 10Hz)
+
+**9E: Overview landing page at `GET /`**
+- [x] Section 1: Title & introduction — project description, what SpecParam is, core claim
+- [x] Section 2: Mathematical background — MathJax (CDN) for LaTeX equations:
+  - Aperiodic model: `log₁₀(PSD) = b − log₁₀(k + f^χ)`
+  - Periodic peaks: Gaussian in log-PSD space
+  - Full model: `S(f) = 10^(aperiodic + Σpeaks)`
+  - ACF via IRFFT: `R[m] = IFFT(S_two) · f_s`
+  - Three-stage fitting pipeline
+  - Math strings as module-level constants (avoid f-string `{}` conflicts)
+- [x] Section 3: Architecture overview — text pipeline diagram, module descriptions, shared schema
+- [x] Section 4: Live equivalence summary — runs mini-sweep (5 exponents × 3 peak configs = 15 runs) on load, displays RMSE, convergence rate, TOST results, small Bland-Altman plot
+- [x] Section 5: Example configurations — 5 curated cards with "Try in Simulator →" buttons:
+  1. Clean 1/f (No Peaks) — exponent=1.5, n_peaks=0
+  2. Strong Alpha Rhythm — exponent=1.5, peak at 10Hz/1.2/2.0
+  3. Alpha + Beta — two peaks at 10Hz and 25Hz
+  4. Steep Spectral Slope — exponent=2.5, peak at 10Hz
+  5. Short Clinical Recording — duration=5s, peak at 10Hz
+- [x] Section 6: Using the simulator — parameter guide, plot interpretation, link to sweep
+
+**9F: CSS & polish**
+- [x] Extend `_BASE_CSS` with overview page styles: section headers, math blocks, example cards, pipeline diagram
+- [x] Nav bar styles replacing `.controls`
+- [x] Range slider styling, loading spinner overlay
+- [x] Responsive adjustments
+
+**9G: Verification & deployment**
+- [x] `pytest tests/ -v` — all 213 tests pass
+- [x] Local dev server test: overview loads, math renders, mini-sweep runs, examples link correctly
+- [x] Simulator auto-compute works, URL updates, query param pre-fill works
+- [x] Sweep nav links correct
+- [ ] Docker build succeeds locally
+- [ ] Deploy to Railway
+
 ## Current Focus
-Phase 8 complete. All sub-phases (8A–8G) done. Next: Phase 6 deployment to Railway.
+Phase 9 complete (9A–9G all done). Remaining: Docker build + Railway deploy (Phase 6 + 9G deploy checkboxes).

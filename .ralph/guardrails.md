@@ -195,6 +195,51 @@ Generate on demand or use tabs/accordion.
 ### 🚧 SIGN: Pin dependency versions in requirements.txt
 `specparam`, `numpy`, `scipy` version interactions matter. Pin them.
 
+## Phase 9 Constraints (Overview Page & Simulator)
+
+### 🚧 SIGN: MathJax LaTeX strings must NOT be in f-strings
+LaTeX uses `{}` which conflicts with Python f-string interpolation. Define all math
+content as module-level string constants (regular strings, not f-strings), then interpolate
+them into the HTML f-string template: `{MATH_APERIODIC}`. Never write LaTeX directly
+inside an f-string — it will either fail or silently eat braces.
+
+### 🚧 SIGN: AJAX compute endpoint must mirror simulate_page params exactly
+`GET /simulate/compute` must accept the same `Query()` parameters with the same defaults
+as `simulate_page()`. If they diverge, the JS fetch will pass params the endpoint doesn't
+expect, or vice versa. Extract param definitions to a shared pattern if possible.
+
+### 🚧 SIGN: Range slider and number input must not both have `name` attribute
+If both a `<input type="range">` and `<input type="number">` for the same parameter have
+the same `name`, the form will submit duplicate query params. Only one input should carry
+the `name` attribute; the other syncs via JS.
+
+### 🚧 SIGN: Overview mini-sweep must be bounded
+The live mini-sweep on the overview page runs on every page load. Keep it to ≤15 runs
+(5 exponents × 3 peak configs) with duration=10s signals. Must complete in <15 seconds
+and use <256MB. If it grows, add a loading indicator.
+
+### 🚧 SIGN: Plotly.react requires div ID, not innerHTML replacement
+For AJAX plot updates, use `Plotly.react(divId, data, layout)` — do not replace innerHTML
+of the plot container. innerHTML replacement leaks Plotly's internal state and causes
+memory issues on repeated updates. The div must have a stable ID.
+
+### 🚧 SIGN: AbortController prevents stale AJAX responses
+When the user changes a parameter while a previous fetch is in-flight, abort the old
+request before starting the new one. Without this, a slow old request can overwrite
+the results of a newer fast request, showing stale data.
+
+### 🚧 SIGN: Range slider uses `data-sync` attribute, not `name`
+Range sliders use `data-sync="param_name"` to link to the corresponding `<input type="number" name="param_name">`.
+Only the number input carries the `name` attribute. JS syncs them via `input` events on both elements.
+If you add a new slider-number pair, follow this pattern — giving both a `name` produces duplicate query params.
+
+### 🚧 SIGN: Initial Plotly render must use Plotly.react with JSON, not to_html
+When AJAX updates use `Plotly.react(divId, data, layout)`, the initial server-side render
+must also use `Plotly.react` with JSON data (via `plotly.io.to_json`), not `plotly.io.to_html`.
+Mixing approaches creates two Plotly instances in the same container — the first from `to_html`'s
+inline script, the second from `Plotly.react`. Use `to_json` for initial data, render it via
+`Plotly.react` in a `<script>` block, and reuse the same div ID for AJAX updates.
+
 ## Process Constraints
 
 ### 🚧 SIGN: Run tests after every change

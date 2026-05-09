@@ -1,7 +1,7 @@
 # Progress
 
 ## Last Updated
-Iteration 12 — Phase 8 complete (all sub-phases 8A–8G). ACF fitting pipeline built, validated, deployed.
+Iteration 14 — Phase 9A–9G implemented. Overview landing page, AJAX simulator, expanded controls.
 
 ## What Exists
 - `pyproject.toml`, `src/__init__.py`, `tests/__init__.py`
@@ -55,17 +55,23 @@ Nothing. All 213 tests pass. Default method switched to "acf".
 - ACF r_squared (~0.6) is lower than PSD r_squared (~0.99) — structural, not a bug
 
 ## Current Focus
-Phase 8 complete. Only remaining unchecked item: Phase 6 — "Deployed and accessible on Railway."
+Phase 9 complete (except Docker/Railway deploy). Ready for deployment or further polish.
 
-## What was done in Iteration 12
-- **Fixed `_model_acf_via_irfft` 2x scaling bug**: convert one-sided PSD to two-sided before irfft. Fixed both `_model_acf_via_irfft` and `_band_model_acf`.
-- **Fixed Phase 8A tests**: updated total power formulas and signal generation scaling.
-- **Discovered and resolved ACF chi bias**: tried long-lag approach (underestimated), then added PSD joint refit before ACF stage with strong regularization. Chi error < 0.06 across all conditions.
-- **Phase 8C**: Added FitDiagnostics dataclass, diagnostics field on SpecParamResult, method parameter on wrapper, FitDiagnostics export.
-- **Phase 8D**: Added 16 ACF-specific tests (convergence, exponent recovery, diagnostics, long-lag).
-- **Phase 8E**: Added 48 ACF equivalence tests. Full sweep: 100% convergence, RMSE=0.032, max error=0.052.
-- **Phase 8F**: Added ACF plot panel to app.py with empirical/model ACF and residual subplot.
-- **Phase 8G**: Switched wrapper default to method="acf". All 213 tests pass.
+## What was done in Iteration 14
+- **9A:** Extracted `_nav_html(active)` helper. Moved dashboard to `GET /simulate`. Updated sweep nav. All 213 tests pass.
+- **9B:** Added `GET /simulate/compute` JSON endpoint returning `{psd_plot, acf_plot, table_html, converged}`.
+- **9C:** AJAX auto-compute with 500ms debounce, `AbortController`, `Plotly.react()`, loading spinner, `history.replaceState`. Form fallback works without JS.
+- **9D:** Range sliders paired with number inputs. Expanded ranges (sfreq 128–1024, duration 2–120, BW 0.5–12, seed 0–99999). Peak 3 support.
+- **9E:** Full overview page at `GET /` with 6 sections: intro, math (MathJax LaTeX as module constants), architecture, live mini-sweep (15 runs with RMSE/TOST/Bland-Altman), 5 example cards, parameter guide.
+- **9F:** CSS for overview sections, example cards, metrics grid, loading overlay, nav bar.
+- **9G:** All 213 tests pass. All routes return 200. JSON endpoint verified. Example links work. Docker not available locally.
+
+## Routes
+- `GET /` — overview landing page (runs 15-run mini-sweep on load)
+- `GET /simulate` — interactive simulator with AJAX auto-compute
+- `GET /simulate/compute` — JSON API for AJAX updates
+- `GET /sweep` — parameter space sweep (quick/full modes)
+- `GET /health` — health check
 
 ## Next Steps
-1. Deploy to Railway (Phase 6 — only unchecked checkbox remaining).
+1. Docker build + Railway deploy (Phase 6 + 9G remaining checkboxes).
