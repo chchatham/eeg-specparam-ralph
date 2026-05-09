@@ -92,7 +92,7 @@ output. The provided code is a working prototype with known limitations to addre
 - [x] Health check endpoint
 - [x] Environment variable configuration for production
 - [x] README with deployment instructions
-- [ ] Deployed and accessible on Railway
+- [x] Deployed and accessible on Railway — https://eeg-specparam-production.up.railway.app
 
 ## Environment
 - Python 3.11+
@@ -218,8 +218,107 @@ auto-compute and wider parameter ranges, and add example configurations that lin
 - [x] Local dev server test: overview loads, math renders, mini-sweep runs, examples link correctly
 - [x] Simulator auto-compute works, URL updates, query param pre-fill works
 - [x] Sweep nav links correct
-- [ ] Docker build succeeds locally
+- [x] Docker build succeeds locally — N/A locally, built successfully on Railway
+- [x] Deploy to Railway — live at https://eeg-specparam-production.up.railway.app
+
+### Phase 10: R Shiny-Style UI Redesign
+**Context:** The current UI is functional but visually plain — basic form inputs, minimal layout
+structure, and generic Bootstrap-ish styling. The goal is a complete visual redesign inspired by
+R Shiny's polished, professional dashboard interfaces (shinydashboard, bslib). The app should
+feel like a first-class scientific instrument panel, not a developer prototype.
+
+**Design Reference — R Shiny Characteristics to Replicate:**
+- **Sidebar + main panel layout** — controls in a fixed/collapsible sidebar, outputs in a wide main area
+- **Card/panel-based content organization** — `wellPanel`, `box()`, `card()` with headers and footers
+- **Tab panels** — `tabsetPanel` / `navbarPage` for organizing multiple views
+- **Grouped inputs with clear labels** — `sliderInput`, `numericInput`, `selectInput` with help text
+- **Fluid responsive grid** — `fluidRow` / `column` layout system
+- **Professional color palette** — muted blues, clean whites, subtle shadows, accent colors for status
+- **Reactive status indicators** — loading spinners, progress bars, conditional panels
+- **Dense but readable typography** — compact fonts, clear hierarchy, no wasted space
+- **Header bar with app branding** — title, subtitle, optional logo/icon area
+- **Footer with metadata** — version, links, documentation references
+- **Consistent iconography** — Font Awesome or similar for section headers and buttons
+
+**10A: Layout restructure — sidebar + main panel**
+- [x] Replace current `max-width: 1100px` centered layout with sidebar (280-320px) + main panel
+- [x] Sidebar: fixed-position, scrollable, contains all parameter controls
+- [x] Main panel: fluid-width, contains plots, tables, and results
+- [x] Collapsible sidebar toggle button (hamburger or chevron)
+- [x] Sidebar sections with collapsible groups: "Aperiodic Parameters", "Periodic Peaks", "Signal Settings"
+- [x] "Run Simulation" prominent button at bottom of sidebar (keep AJAX auto-compute too)
+
+**10B: Card/panel system**
+- [x] Define reusable card component: header (with optional icon), body, optional footer
+- [x] Wrap each plot in a card with title ("Power Spectral Density", "Autocorrelation Function")
+- [x] Wrap comparison table in a card
+- [x] Wrap equivalence metrics in a card with status badge header
+- [x] Cards have consistent padding, border-radius, subtle shadow, white background
+
+**10C: Navigation redesign**
+- [x] Replace simple nav links with a proper top navbar (dark header bar with app title on left)
+- [x] Nav items as styled tabs or pills within the navbar
+- [x] Active state clearly indicated (bottom border or background highlight)
+- [x] Mobile-responsive: hamburger menu collapse on small screens
+
+**10D: Input controls — Shiny-style**
+- [x] Style sliders to look like Shiny's `sliderInput` — track, thumb, value tooltip
+- [x] Group related inputs in `wellPanel`-style containers (slightly recessed background)
+- [x] Add descriptive help text below inputs (e.g., "Controls the 1/f slope of the spectrum")
+- [x] Conditional visibility for peak fields with smooth slide animation (not abrupt show/hide)
+- [x] Select dropdown for n_peaks styled like `selectInput`
+- [x] Compact number inputs with +/- stepper buttons
+
+**10E: Overview page redesign**
+- [x] Hero section with large title, brief description, and prominent "Launch Simulator" CTA button
+- [x] Math equations in styled theorem/definition boxes (not just left-bordered divs)
+- [x] Architecture section as a visual flow diagram (CSS-based, not text art)
+- [x] Example configurations as interactive cards with hover effects and parameter preview
+- [x] Equivalence summary as a dashboard-style metrics row (big numbers + labels + sparklines)
+
+**10F: Color palette and typography**
+- [x] Define CSS custom properties (variables) for consistent theming:
+  - Primary: deep blue (#2C3E50 or similar)
+  - Accent: scientific blue (#3498DB)
+  - Success: green for equivalence pass (#27AE60)
+  - Warning: amber for near-threshold (#F39C12)
+  - Danger: red for failure (#E74C3C)
+  - Background: light gray (#F4F6F9)
+  - Card background: white (#FFFFFF)
+  - Text: dark charcoal (#343A40)
+  - Muted text: (#6C757D)
+- [x] Typography: system font stack with clear size hierarchy (h1=1.75rem, h2=1.35rem, body=0.9rem)
+- [x] Monospace for numeric values and parameter names
+
+**10G: Interactive enhancements**
+- [x] Loading skeleton animations on plots while computing (not just a spinner overlay)
+- [x] Smooth transitions when switching tabs or toggling sidebar
+- [x] Tooltip popovers on parameter labels explaining what each parameter does
+- [x] Plot cards with an "expand" button for full-screen view
+- [x] Animated progress indicator during sweep computation
+
+**10H: Sweep page redesign**
+- [x] Results in a card grid layout, not a plain table
+- [x] Heatmap card for parameter space coverage
+- [x] Filter/sort controls styled as Shiny `selectInput` dropdowns
+- [x] Summary statistics row at top (like overview dashboard metrics)
+
+**10I: CSS architecture**
+- [x] All styles in a single `_SHINY_CSS` module-level constant (replacing `_BASE_CSS` + `_OVERVIEW_CSS`)
+- [x] CSS custom properties for theming at `:root` level
+- [x] Responsive breakpoints: mobile (<768px sidebar collapses), tablet (768-1024), desktop (1024+)
+- [x] Print stylesheet basics (hide sidebar, full-width main)
+- [x] No external CSS framework — all custom CSS to keep the single-file FastAPI architecture
+
+**10J: Verification & deployment**
+- [x] `pytest tests/ -v` — all existing tests pass (UI changes are HTML-only, no logic changes)
+- [x] Visual testing: all 5 routes render correctly with new layout
+- [x] Sidebar toggle works, responsive breakpoints work
+- [x] AJAX auto-compute still functions correctly
+- [x] Overview mini-sweep renders in new card layout
+- [x] Sweep page renders in new card layout
+- [ ] Docker build succeeds
 - [ ] Deploy to Railway
 
 ## Current Focus
-Phase 9 complete (9A–9G all done). Remaining: Docker build + Railway deploy (Phase 6 + 9G deploy checkboxes).
+Phase 10J — Deploy to Railway (Docker build + deploy). All other Phase 10 items complete.

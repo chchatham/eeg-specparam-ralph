@@ -29,23 +29,64 @@ _MATH_FITTING = (
 )
 
 _BASE_CSS = """\
+:root {{
+  --primary: #2c3e50;
+  --primary-light: #34495e;
+  --accent: #3498db;
+  --accent-hover: #2980b9;
+  --success: #27ae60;
+  --success-hover: #219a52;
+  --warning: #f39c12;
+  --danger: #e74c3c;
+  --bg: #f4f6f9;
+  --card-bg: #ffffff;
+  --text: #343a40;
+  --text-muted: #6c757d;
+  --text-light: #95a5a6;
+  --border: #dee2e6;
+  --border-light: #ecf0f1;
+  --well-bg: #f8f9fa;
+  --shadow: 0 1px 3px rgba(0,0,0,0.1);
+}}
 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-       max-width: 1100px; margin: 0 auto; padding: 20px; background: #f8f9fa; }}
-h1 {{ color: #2c3e50; margin-bottom: 5px; }}
-.subtitle {{ color: #7f8c8d; margin-bottom: 20px; }}
-.plot {{ background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+       max-width: 1100px; margin: 0 auto; padding: 20px; background: var(--bg);
+       color: var(--text); font-size: 0.9rem; line-height: 1.5; }}
+h1 {{ color: var(--primary); margin-bottom: 5px; font-size: 1.75rem; }}
+h2 {{ font-size: 1.35rem; color: var(--primary); }}
+h3 {{ font-size: 1.1rem; color: var(--primary); }}
+.subtitle {{ color: var(--text-muted); margin-bottom: 20px; }}
+code {{ font-family: 'SF Mono', 'Fira Code', Consolas, monospace; font-size: 0.88em; }}
+.plot {{ background: var(--card-bg); padding: 15px; border-radius: 8px; box-shadow: var(--shadow);
          margin-bottom: 20px; }}
-table {{ width: 100%; border-collapse: collapse; background: white; border-radius: 8px;
-         overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }}
-th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #eee; }}
-th {{ background: #2c3e50; color: white; }}
-nav {{ margin-bottom: 20px; }}
-nav a {{ margin-right: 16px; padding: 8px 16px; background: #3498db; color: white;
-         text-decoration: none; border-radius: 4px; }}
-nav a.active {{ background: #2c3e50; }}
-nav a:hover {{ background: #2980b9; }}
+table {{ width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 8px;
+         overflow: hidden; box-shadow: var(--shadow); margin-bottom: 20px; }}
+th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border-light); }}
+th {{ background: var(--primary); color: white; }}
+.navbar {{ background: var(--primary); border-radius: 6px; margin-bottom: 20px; overflow: hidden; }}
+.nav-links {{ display: flex; }}
+.nav-toggle {{ display: none; background: none; border: none; color: rgba(255,255,255,0.8);
+               padding: 10px 16px; cursor: pointer; font-size: 0.9em; width: 100%; text-align: left; }}
+.nav-toggle:hover {{ color: white; }}
+.navbar a {{ padding: 10px 18px; color: rgba(255,255,255,0.7); text-decoration: none;
+             font-size: 0.9em; font-weight: 500; border-bottom: 3px solid transparent;
+             transition: color 0.2s, border-color 0.2s; white-space: nowrap; }}
+.navbar a:hover {{ color: white; background: rgba(255,255,255,0.05); }}
+.navbar a.active {{ color: white; border-bottom-color: var(--accent); }}
+@media (max-width: 600px) {{
+  .nav-toggle {{ display: block; }}
+  .nav-links {{ display: none; flex-direction: column; }}
+  .navbar.expanded .nav-links {{ display: flex; }}
+  .navbar a {{ border-bottom: none; border-left: 3px solid transparent; }}
+  .navbar a.active {{ border-left-color: #3498db; }}
+}}
 .badge {{ display: inline-block; padding: 2px 10px; border-radius: 4px; color: white;
-          font-weight: bold; font-size: 0.85em; }}"""
+          font-weight: bold; font-size: 0.85em; }}
+.card {{ background: var(--card-bg); border-radius: 8px; box-shadow: var(--shadow);
+         margin-bottom: 20px; overflow: hidden; }}
+.card-header {{ display: flex; justify-content: space-between; align-items: center;
+                padding: 10px 16px; font-weight: 600; font-size: 0.95em;
+                border-bottom: 1px solid var(--border-light); color: var(--primary); background: var(--well-bg); }}
+.card-body {{ padding: 16px; }}"""
 
 
 def _nav_html(active: str) -> str:
@@ -59,7 +100,13 @@ def _nav_html(active: str) -> str:
     for label, href in items:
         cls = ' class="active"' if label == active else ""
         links.append(f'<a href="{href}"{cls}>{label}</a>')
-    return f'<nav>{"".join(links)}</nav>'
+    return (
+        '<nav class="navbar">'
+        '<button class="nav-toggle" onclick="this.parentElement.classList.toggle(\'expanded\')" '
+        'type="button">&#9776; Menu</button>'
+        f'<div class="nav-links">{"".join(links)}</div>'
+        '</nav>'
+    )
 
 
 def _assemble_peaks(n_peaks, peak1_center, peak1_power, peak1_bw,
@@ -72,11 +119,11 @@ def _assemble_peaks(n_peaks, peak1_center, peak1_power, peak1_bw,
 
 
 def _peak_fields_html(n: int, center: float, power: float, bw: float, n_peaks: int) -> str:
-    vis = "" if n_peaks >= n else "display:none"
+    cls = "peak-group visible" if n_peaks >= n else "peak-group"
     p = f"peak{n}"
     return (
-        f'<div id="{p}-fields" style="{vis}">\n'
-        f'<h4 style="margin: 12px 0 6px;">Peak {n}</h4>\n'
+        f'<div id="{p}-fields" class="{cls}">\n'
+        f'<h4 style="margin: 12px 0 6px; font-size: 0.88em; color: #34495e;">Peak {n}</h4>\n'
         f'<div class="grid">\n'
         f'  <div class="field"><label>Center freq (Hz)</label>\n'
         f'    <div class="range-row"><input type="range" min="1" max="50" step="0.5" value="{center}" data-sync="{p}_center">\n'
@@ -221,24 +268,136 @@ def _build_comparison_table(spectral, td, comp):
 
 
 _OVERVIEW_CSS = """\
-.section {{ background: white; padding: 24px 28px; border-radius: 8px;
-           box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px; }}
-.section h2 {{ color: #2c3e50; margin-top: 0; border-bottom: 2px solid #ecf0f1; padding-bottom: 8px; }}
-.math-block {{ background: #fdfdfe; border-left: 3px solid #3498db; padding: 12px 16px;
-              margin: 12px 0; border-radius: 0 4px 4px 0; overflow-x: auto; }}
-.pipeline {{ background: #f1f3f5; padding: 16px; border-radius: 6px; font-family: monospace;
-             font-size: 0.9em; line-height: 1.8; white-space: pre; overflow-x: auto; }}
+.hero {{ background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%);
+         color: white; padding: 48px 32px; border-radius: 8px; text-align: center;
+         margin-bottom: 24px; }}
+.hero h1 {{ color: white; font-size: 2rem; margin-bottom: 12px; border: none; }}
+.hero p {{ font-size: 1.1em; opacity: 0.85; max-width: 700px; margin: 0 auto 20px; line-height: 1.5; }}
+.cta-btn {{ display: inline-block; padding: 12px 28px; background: #27ae60; color: white;
+            border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 1.05em;
+            transition: background 0.2s; }}
+.cta-btn:hover {{ background: #219a52; }}
+.theorem-box {{ background: #fafbfc; border: 1px solid #e0e4e8; border-radius: 8px;
+                padding: 14px 20px; margin: 12px 0; text-align: center; }}
+.theorem-box .th-label {{ font-size: 0.75em; font-weight: 600; color: #95a5a6;
+                          text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }}
+.flow-diagram {{ text-align: center; padding: 16px 0; }}
+.flow-node {{ display: inline-block; padding: 10px 20px; border-radius: 6px;
+              font-weight: 600; font-size: 0.9em; }}
+.flow-input {{ background: #2c3e50; color: white; }}
+.flow-spectral {{ background: #3498db; color: white; }}
+.flow-timedomain {{ background: #e74c3c; color: white; }}
+.flow-result {{ background: #ecf0f1; color: #2c3e50; border: 1px solid #bdc3c7; }}
+.flow-comparison {{ background: #27ae60; color: white; }}
+.flow-arrow {{ font-size: 1.4em; color: #95a5a6; margin: 6px 0; }}
+.flow-split {{ display: flex; justify-content: center; gap: 32px; margin: 8px 0; }}
+.flow-branch {{ display: flex; flex-direction: column; align-items: center; }}
+.flow-detail {{ font-size: 0.82em; color: #7f8c8d; margin: 4px 0; }}
 .example-cards {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }}
-.card {{ background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 16px; }}
-.card h4 {{ margin: 0 0 8px; color: #2c3e50; }}
-.card p {{ font-size: 0.9em; color: #555; margin: 0 0 12px; }}
-.card a {{ display: inline-block; padding: 6px 14px; background: #3498db; color: white;
-           text-decoration: none; border-radius: 4px; font-size: 0.85em; }}
-.card a:hover {{ background: #2980b9; }}
+.example-card {{ background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 16px;
+                 transition: transform 0.2s, box-shadow 0.2s; }}
+.example-card:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }}
+.example-card h4 {{ margin: 0 0 6px; color: #2c3e50; }}
+.example-card .params {{ font-size: 0.78em; color: #7f8c8d; font-family: monospace; margin-bottom: 8px; }}
+.example-card p {{ font-size: 0.9em; color: #555; margin: 0 0 12px; }}
+.example-card a {{ display: inline-block; padding: 6px 14px; background: #3498db; color: white;
+                   text-decoration: none; border-radius: 4px; font-size: 0.85em; transition: background 0.2s; }}
+.example-card a:hover {{ background: #2980b9; }}
 .metrics-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }}
-.metric-box {{ background: #f8f9fa; border-radius: 6px; padding: 12px; text-align: center; }}
-.metric-box .value {{ font-size: 1.6em; font-weight: bold; color: #2c3e50; }}
-.metric-box .label {{ font-size: 0.85em; color: #7f8c8d; }}"""
+.metric-box {{ background: #f8f9fa; border-radius: 6px; padding: 16px; text-align: center;
+               border: 1px solid #ecf0f1; }}
+.metric-box .value {{ font-size: 1.8em; font-weight: bold; color: #2c3e50; }}
+.metric-box .label {{ font-size: 0.82em; color: #7f8c8d; margin-top: 4px; }}"""
+
+_SIMULATOR_CSS = """\
+body.sim-page {{ max-width: none; margin: 0; padding: 0; background: var(--bg); }}
+.sidebar {{ width: 300px; position: fixed; top: 0; bottom: 0; left: 0; overflow-y: auto;
+            background: var(--card-bg); border-right: 1px solid var(--border); padding: 0;
+            box-shadow: 2px 0 8px rgba(0,0,0,0.06); z-index: 100;
+            transition: transform 0.3s ease; }}
+.sidebar-header {{ display: flex; justify-content: space-between; align-items: center;
+                   padding: 14px 16px; border-bottom: 1px solid var(--border-light);
+                   background: var(--primary); color: white; }}
+.sidebar-header h2 {{ margin: 0; font-size: 1.05rem; color: white; font-weight: 600; }}
+.sidebar-close {{ display: none; background: none; border: none; font-size: 1.4rem;
+                  cursor: pointer; color: rgba(255,255,255,0.7); line-height: 1; padding: 0; }}
+.sidebar-close:hover {{ color: white; }}
+.sidebar-body {{ padding: 12px 16px 80px; }}
+.main-panel {{ margin-left: 300px; padding: 20px 28px; min-height: 100vh; }}
+.top-bar {{ display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }}
+.sidebar-toggle {{ display: none; background: var(--primary); color: white; border: none;
+                   font-size: 1.1rem; padding: 8px 11px; border-radius: 4px; cursor: pointer; }}
+.sidebar-toggle:hover {{ background: var(--primary-light); }}
+details {{ margin-bottom: 4px; border-bottom: 1px solid #f0f0f0; }}
+details[open] {{ margin-bottom: 8px; }}
+details summary {{ font-weight: 600; color: var(--primary); cursor: pointer; padding: 8px 0;
+                   font-size: 0.9em; list-style: none; }}
+details summary::-webkit-details-marker {{ display: none; }}
+details summary::before {{ content: "\25B8  "; color: var(--text-light); font-size: 0.85em; }}
+details[open] > summary::before {{ content: "\25BE  "; }}
+details summary:hover {{ color: var(--accent); }}
+.well {{ background: var(--well-bg); border: 1px solid var(--border-light); border-radius: 6px;
+         padding: 12px; margin: 6px 0 10px; }}
+.grid {{ display: flex; flex-direction: column; gap: 8px; }}
+.field {{ display: flex; flex-direction: column; margin-bottom: 10px; }}
+.field label {{ font-size: 0.82em; color: #555; margin-bottom: 3px; font-weight: 500; }}
+.field input[type="number"] {{ padding: 5px 7px; border: 1px solid var(--border); border-radius: 4px;
+                               width: 72px; font-size: 0.9em; }}
+.field input[type="range"] {{ width: 100%; margin: 4px 0 0; accent-color: var(--accent); }}
+.range-row {{ display: flex; align-items: center; gap: 8px; }}
+.run-btn {{ width: 100%; background: var(--success); color: white; border: none; padding: 12px;
+            border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: 600;
+            margin-top: 12px; }}
+.run-btn:hover {{ background: var(--success-hover); }}
+input[type="range"] {{ -webkit-appearance: none; appearance: none;
+                       height: 6px; background: #e0e4e8; border-radius: 3px; outline: none; }}
+input[type="range"]::-webkit-slider-thumb {{ -webkit-appearance: none; width: 18px; height: 18px;
+    background: var(--accent); border-radius: 50%; cursor: pointer; border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2); margin-top: -6px; }}
+input[type="range"]::-moz-range-track {{ height: 6px; background: #e0e4e8;
+                                         border-radius: 3px; border: none; }}
+input[type="range"]::-moz-range-thumb {{ width: 14px; height: 14px; background: var(--accent);
+    border-radius: 50%; cursor: pointer; border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2); }}
+.help-text {{ font-size: 0.73em; color: var(--text-light); margin-top: 2px; line-height: 1.3; }}
+.styled-select {{ width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px;
+                  font-size: 0.9em; background: white; color: var(--primary); cursor: pointer; }}
+.styled-select:focus {{ border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px rgba(52,152,219,0.15); }}
+.peak-group {{ overflow: hidden; max-height: 0; opacity: 0;
+               transition: max-height 0.3s ease, opacity 0.2s ease; }}
+.peak-group.visible {{ max-height: 300px; opacity: 1; }}
+.plot-wrapper {{ position: relative; }}
+.loading-overlay {{ position: absolute; inset: 0; background: rgba(255,255,255,0.85);
+                    display: none; align-items: center; justify-content: center;
+                    z-index: 10; border-radius: 8px; padding: 20px; }}
+.loading-overlay.active {{ display: flex; }}
+.skeleton-bar {{ width: 90%; height: 250px; border-radius: 6px;
+                 background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                 background-size: 200% 100%; animation: shimmer 1.5s infinite; }}
+@keyframes shimmer {{ 0% {{ background-position: 200% 0; }} 100% {{ background-position: -200% 0; }} }}
+.expand-btn {{ background: none; border: none; color: var(--text-muted); cursor: pointer;
+               font-size: 1.1em; padding: 2px 6px; border-radius: 4px; line-height: 1; }}
+.expand-btn:hover {{ background: rgba(0,0,0,0.06); color: var(--primary); }}
+.card.fullscreen {{ position: fixed; inset: 0; z-index: 1000; border-radius: 0;
+                    margin: 0; overflow-y: auto; }}
+.sweep-controls {{ display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }}
+.sweep-controls label {{ font-size: 0.85em; color: var(--text-muted); font-weight: 500; }}
+.sweep-controls select {{ padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px;
+                          font-size: 0.9em; background: white; cursor: pointer; }}
+@media (max-width: 768px) {{
+  .sidebar {{ transform: translateX(-100%); }}
+  .sidebar.open {{ transform: translateX(0); }}
+  .sidebar-close {{ display: block; }}
+  .sidebar-toggle {{ display: block; }}
+  .main-panel {{ margin-left: 0; }}
+}}
+@media print {{
+  .sidebar, .navbar, .nav-toggle, .sidebar-toggle, .run-btn {{ display: none !important; }}
+  .main-panel {{ margin-left: 0; }}
+  body {{ max-width: none; }}
+}}"""
+
+_SHINY_CSS = _BASE_CSS + "\n" + _OVERVIEW_CSS + "\n" + _SIMULATOR_CSS
 
 
 _mini_sweep_cache: list[dict] | None = None
@@ -298,17 +457,21 @@ def overview_page():
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
 <style>
-{_BASE_CSS}
-{_OVERVIEW_CSS}
+{_SHINY_CSS}
 </style>
 </head>
 <body>
+<div class="hero">
 <h1>EEG SpecParam Equivalence Simulator</h1>
-<p class="subtitle">Demonstrating equivalence between spectral and time-domain SpecParam on synthetic EEG</p>
+<p>Demonstrating that spectral-domain and time-domain SpecParam produce equivalent
+results on synthetic EEG data</p>
+<a href="/simulate" class="cta-btn">Launch Simulator</a>
+</div>
 {_nav_html("Overview")}
 
-<div class="section">
-<h2>Introduction</h2>
+<div class="card">
+<div class="card-header">Introduction</div>
+<div class="card-body">
 <p>SpecParam (formerly FOOOF) is the standard algorithm for parameterizing neural power spectra
 into aperiodic (1/f-like) and periodic (oscillatory) components. It operates in the frequency
 domain by fitting a mixture model to the power spectral density (PSD).</p>
@@ -320,28 +483,30 @@ non-stationary data, real-time BCI).</p>
 <p>The simulator below generates artifact-free synthetic EEG, runs both pipelines on it, and
 presents side-by-side equivalence results.</p>
 </div>
+</div>
 
-<div class="section">
-<h2>Mathematical Background</h2>
+<div class="card">
+<div class="card-header">Mathematical Background</div>
+<div class="card-body">
 <p><strong>Aperiodic component</strong> &mdash; modeled as a Lorentzian in log-log space with
 offset <em>b</em>, knee <em>k</em>, and spectral exponent &chi;:</p>
-<div class="math-block">{_MATH_APERIODIC}</div>
+<div class="theorem-box"><div class="th-label">Aperiodic Model</div>{_MATH_APERIODIC}</div>
 
 <p><strong>Periodic peaks</strong> &mdash; each oscillatory component is a Gaussian in
 log-power space with amplitude <em>a</em>, center frequency <em>c</em>, and bandwidth <em>w</em>:</p>
-<div class="math-block">{_MATH_PERIODIC}</div>
+<div class="theorem-box"><div class="th-label">Periodic Component</div>{_MATH_PERIODIC}</div>
 
 <p><strong>Full model</strong> &mdash; aperiodic and periodic are additive in log-PSD space,
 so the linear PSD is their exponentiated sum:</p>
-<div class="math-block">{_MATH_FULL}</div>
+<div class="theorem-box"><div class="th-label">Full PSD Model</div>{_MATH_FULL}</div>
 
 <p><strong>ACF via inverse FFT</strong> &mdash; the model autocovariance is computed numerically
 by taking the inverse FFT of the two-sided model PSD:</p>
-<div class="math-block">{_MATH_ACF}</div>
+<div class="theorem-box"><div class="th-label">Model ACF</div>{_MATH_ACF}</div>
 
 <p><strong>Time-domain fitting</strong> &mdash; the ACF-based fitter minimizes the sum of squared
 residuals between empirical and model ACFs over lags 0 to <em>M</em>:</p>
-<div class="math-block">{_MATH_FITTING}</div>
+<div class="theorem-box"><div class="th-label">Objective Function</div>{_MATH_FITTING}</div>
 
 <h3>Three-Stage Fitting Pipeline</h3>
 <ol>
@@ -350,20 +515,31 @@ residuals between empirical and model ACFs over lags 0 to <em>M</em>:</p>
 <li><strong>Stage 2: ACF full model</strong> &mdash; joint fit of all parameters with &chi; regularized toward PSD-refined estimate</li>
 </ol>
 </div>
+</div>
 
-<div class="section">
-<h2>Architecture</h2>
-<div class="pipeline">EEGSignal (numpy)
-    &darr;
-+---+-------------------+---+
-|   Spectral Pipeline   |   Time-Domain Pipeline   |
-|   Welch PSD &rarr; specparam  |   ACF via FFT &rarr; IRFFT fit   |
-|   &darr;                  |   &darr;                      |
-|   SpecParamResult     |   SpecParamResult         |
-+---+-------------------+---+
-    &darr;                      &darr;
-    +--- ComparisonResult ---+
-         (RMSE, TOST, Bland-Altman)</div>
+<div class="card">
+<div class="card-header">Architecture</div>
+<div class="card-body">
+<div class="flow-diagram">
+  <div class="flow-node flow-input">EEGSignal (numpy)</div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-split">
+    <div class="flow-branch">
+      <div class="flow-node flow-spectral">Spectral Pipeline</div>
+      <div class="flow-detail">Welch PSD &rarr; specparam</div>
+      <div class="flow-arrow">&darr;</div>
+      <div class="flow-node flow-result">SpecParamResult</div>
+    </div>
+    <div class="flow-branch">
+      <div class="flow-node flow-timedomain">Time-Domain Pipeline</div>
+      <div class="flow-detail">ACF via FFT &rarr; IRFFT fit</div>
+      <div class="flow-arrow">&darr;</div>
+      <div class="flow-node flow-result">SpecParamResult</div>
+    </div>
+  </div>
+  <div class="flow-arrow">&darr;</div>
+  <div class="flow-node flow-comparison">ComparisonResult (RMSE, TOST, Bland-Altman)</div>
+</div>
 <p style="margin-top:12px;"><strong>Key modules:</strong></p>
 <table>
 <tr><th>Module</th><th>Purpose</th></tr>
@@ -375,10 +551,12 @@ residuals between empirical and model ACFs over lags 0 to <em>M</em>:</p>
 <tr><td><code>schemas.py</code></td><td>Shared dataclasses (<code>SpecParamResult</code>, <code>EEGSignal</code>)</td></tr>
 </table>
 </div>
+</div>
 
-<div class="section">
-<h2>Live Equivalence Summary</h2>
-<p>Mini-sweep: {n_runs} runs (5 exponents &times; 3 peak configs: 0, 1, 2 peaks).
+<div class="card">
+<div class="card-header">Live Equivalence Summary</div>
+<div class="card-body">
+<p style="color:#7f8c8d; margin-top:0;">Mini-sweep: {n_runs} runs (5 exponents &times; 3 peak configs).
 Each signal is 10 sec at 256 Hz.</p>
 <div class="metrics-grid">
   <div class="metric-box"><div class="value">{converged}/{n_runs}</div><div class="label">Converged</div></div>
@@ -387,47 +565,56 @@ Each signal is 10 sec at 256 Hz.</p>
   <div class="metric-box"><div class="value"><span class="badge" style="background:{tost_color}">{tost_label}</span></div>
     <div class="label">TOST (bound=0.2, p={tost_p:.4f})</div></div>
 </div>
-<div class="plot" style="margin-top:16px;">
-<h3>Bland-Altman: Spectral vs Time-Domain</h3>
+<div style="margin-top:16px;">
+<h4 style="color:#2c3e50; margin-bottom:8px;">Bland-Altman: Spectral vs Time-Domain</h4>
 <div id="ba-plot"></div>
 </div>
 </div>
+</div>
 
-<div class="section">
-<h2>Example Configurations</h2>
-<p>Click any card to open the simulator with that configuration pre-loaded.</p>
+<div class="card">
+<div class="card-header">Example Configurations</div>
+<div class="card-body">
+<p style="color:#7f8c8d; margin-top:0;">Click any card to open the simulator with that configuration pre-loaded.</p>
 <div class="example-cards">
-  <div class="card">
+  <div class="example-card">
     <h4>Clean 1/f (No Peaks)</h4>
-    <p>Pure aperiodic signal with exponent 1.5. Tests baseline aperiodic recovery.</p>
+    <div class="params">&chi;=1.5 &middot; 0 peaks &middot; 30s</div>
+    <p>Pure aperiodic signal. Tests baseline aperiodic recovery.</p>
     <a href="/simulate?exponent=1.5&offset=1.5&n_peaks=0&duration=30&sfreq=256&seed=42">Try in Simulator &rarr;</a>
   </div>
-  <div class="card">
+  <div class="example-card">
     <h4>Strong Alpha Rhythm</h4>
-    <p>Prominent 10 Hz alpha peak over a 1/f background. The most common EEG signature.</p>
+    <div class="params">&chi;=1.5 &middot; 10 Hz (1.2) &middot; 30s</div>
+    <p>Prominent 10 Hz alpha peak. The most common EEG signature.</p>
     <a href="/simulate?exponent=1.5&offset=1.5&n_peaks=1&peak1_center=10&peak1_power=1.2&peak1_bw=2.0&duration=30&sfreq=256&seed=42">Try in Simulator &rarr;</a>
   </div>
-  <div class="card">
+  <div class="example-card">
     <h4>Alpha + Beta</h4>
-    <p>Two-peak model: alpha (10 Hz) and beta (25 Hz). Tests multi-peak detection.</p>
+    <div class="params">&chi;=1.5 &middot; 10 Hz + 25 Hz &middot; 30s</div>
+    <p>Two-peak model. Tests multi-peak detection.</p>
     <a href="/simulate?exponent=1.5&offset=1.5&n_peaks=2&peak1_center=10&peak1_power=0.8&peak1_bw=2.0&peak2_center=25&peak2_power=0.6&peak2_bw=1.5&duration=30&sfreq=256&seed=42">Try in Simulator &rarr;</a>
   </div>
-  <div class="card">
+  <div class="example-card">
     <h4>Steep Spectral Slope</h4>
-    <p>Exponent 2.5 with alpha peak. Tests recovery at the upper edge of the exponent range.</p>
+    <div class="params">&chi;=2.5 &middot; 10 Hz (0.8) &middot; 30s</div>
+    <p>Tests recovery at the upper edge of the exponent range.</p>
     <a href="/simulate?exponent=2.5&offset=1.5&n_peaks=1&peak1_center=10&peak1_power=0.8&peak1_bw=2.0&duration=30&sfreq=256&seed=42">Try in Simulator &rarr;</a>
   </div>
-  <div class="card">
+  <div class="example-card">
     <h4>Short Clinical Recording</h4>
-    <p>Only 5 seconds of data. Tests robustness with limited observation windows.</p>
+    <div class="params">&chi;=1.5 &middot; 10 Hz (0.8) &middot; 5s</div>
+    <p>Only 5 seconds of data. Tests robustness with limited windows.</p>
     <a href="/simulate?exponent=1.5&offset=1.5&n_peaks=1&peak1_center=10&peak1_power=0.8&peak1_bw=2.0&duration=5&sfreq=256&seed=42">Try in Simulator &rarr;</a>
   </div>
 </div>
 </div>
+</div>
 
-<div class="section">
-<h2>Using the Simulator</h2>
-<h3>Parameter Guide</h3>
+<div class="card">
+<div class="card-header">Using the Simulator</div>
+<div class="card-body">
+<h4 style="margin-top:0; color:#2c3e50;">Parameter Guide</h4>
 <table>
 <tr><th>Parameter</th><th>Range</th><th>Description</th></tr>
 <tr><td>Exponent (&chi;)</td><td>0.5 &ndash; 3.0</td><td>Slope of the 1/f background. Typical EEG: 1.0&ndash;2.0.</td></tr>
@@ -447,6 +634,7 @@ The residual (green) should be small and unstructured.</li>
 </ul>
 <p>For a full parameter-space analysis, try the <a href="/sweep?mode=quick">Quick Sweep</a>
 or <a href="/sweep?mode=full">Full Sweep</a>.</p>
+</div>
 </div>
 
 <script>
@@ -500,76 +688,102 @@ def simulate_page(
 <title>EEG SpecParam Equivalence Simulator</title>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <style>
-{_BASE_CSS}
-form {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        margin-bottom: 20px; }}
-.grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }}
-.field {{ display: flex; flex-direction: column; }}
-.field label {{ font-size: 0.85em; color: #555; margin-bottom: 3px; }}
-.field input[type="number"] {{ padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; width: 80px; }}
-.field input[type="range"] {{ width: 100%; margin-top: 4px; }}
-.range-row {{ display: flex; align-items: center; gap: 8px; }}
-button {{ background: #3498db; color: white; border: none; padding: 10px 24px;
-          border-radius: 4px; cursor: pointer; font-size: 1em; margin-top: 12px; }}
-button:hover {{ background: #2980b9; }}
-.plot-wrapper {{ position: relative; }}
-.loading-overlay {{ position: absolute; inset: 0; background: rgba(255,255,255,0.7);
-                    display: none; align-items: center; justify-content: center;
-                    z-index: 10; border-radius: 8px; }}
-.loading-overlay.active {{ display: flex; }}
-.spinner {{ width: 36px; height: 36px; border: 4px solid #ddd; border-top-color: #3498db;
-            border-radius: 50%; animation: spin 0.8s linear infinite; }}
-@keyframes spin {{ to {{ transform: rotate(360deg); }} }}
+{_SHINY_CSS}
 </style>
 </head>
-<body>
-<h1>EEG SpecParam Equivalence Simulator</h1>
-<p class="subtitle">Compare spectral and time-domain SpecParam on synthetic EEG</p>
+<body class="sim-page">
 
-{_nav_html("Simulator")}
-
-<form id="sim-form" method="get" action="/simulate">
-<div class="grid">
-  <div class="field"><label>Exponent (1/f slope)</label>
-    <div class="range-row"><input type="range" min="0.5" max="3.0" step="0.1" value="{exponent}" data-sync="exponent">
-    <input type="number" name="exponent" value="{exponent}" step="0.1" min="0.5" max="3.0"></div></div>
-  <div class="field"><label>Offset (log power)</label>
-    <div class="range-row"><input type="range" min="-3" max="5" step="0.5" value="{offset}" data-sync="offset">
-    <input type="number" name="offset" value="{offset}" step="0.5" min="-3" max="5"></div></div>
-  <div class="field"><label>Number of peaks</label>
-    <div class="range-row"><input type="range" min="0" max="3" step="1" value="{n_peaks}" data-sync="n_peaks">
-    <input type="number" name="n_peaks" value="{n_peaks}" min="0" max="3"></div></div>
-  <div class="field"><label>Duration (sec)</label>
-    <div class="range-row"><input type="range" min="2" max="120" step="1" value="{duration}" data-sync="duration">
-    <input type="number" name="duration" value="{duration}" step="1" min="2" max="120"></div></div>
-  <div class="field"><label>Sample rate (Hz)</label>
-    <div class="range-row"><input type="range" min="128" max="1024" step="64" value="{sfreq}" data-sync="sfreq">
-    <input type="number" name="sfreq" value="{sfreq}" step="64" min="128" max="1024"></div></div>
-  <div class="field"><label>Seed</label>
-    <input type="number" name="seed" value="{seed}" min="0" max="99999"></div>
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h2>Parameters</h2>
+    <button class="sidebar-close" id="sidebar-close" type="button">&times;</button>
+  </div>
+  <div class="sidebar-body">
+    <form id="sim-form" method="get" action="/simulate">
+      <details open>
+        <summary>Aperiodic Parameters</summary>
+        <div class="well">
+          <div class="field"><label>Exponent (&chi;)</label>
+            <div class="range-row"><input type="range" min="0.5" max="3.0" step="0.1" value="{exponent}" data-sync="exponent">
+            <input type="number" name="exponent" value="{exponent}" step="0.1" min="0.5" max="3.0"></div>
+            <span class="help-text">1/f slope of the power spectrum. Typical EEG: 1.0&ndash;2.0</span></div>
+          <div class="field"><label>Offset (b)</label>
+            <div class="range-row"><input type="range" min="-3" max="5" step="0.5" value="{offset}" data-sync="offset">
+            <input type="number" name="offset" value="{offset}" step="0.5" min="-3" max="5"></div>
+            <span class="help-text">Y-intercept of the aperiodic fit in log-log space</span></div>
+        </div>
+      </details>
+      <details open>
+        <summary>Periodic Peaks</summary>
+        <div class="well">
+          <div class="field"><label>Number of peaks</label>
+            <select name="n_peaks" class="styled-select">
+              <option value="0" {"selected" if n_peaks == 0 else ""}>0 &mdash; aperiodic only</option>
+              <option value="1" {"selected" if n_peaks == 1 else ""}>1 peak</option>
+              <option value="2" {"selected" if n_peaks == 2 else ""}>2 peaks</option>
+              <option value="3" {"selected" if n_peaks == 3 else ""}>3 peaks</option>
+            </select></div>
+          {_peak_fields_html(1, peak1_center, peak1_power, peak1_bw, n_peaks)}
+          {_peak_fields_html(2, peak2_center, peak2_power, peak2_bw, n_peaks)}
+          {_peak_fields_html(3, peak3_center, peak3_power, peak3_bw, n_peaks)}
+        </div>
+      </details>
+      <details open>
+        <summary>Signal Settings</summary>
+        <div class="well">
+          <div class="field"><label>Duration (sec)</label>
+            <div class="range-row"><input type="range" min="2" max="120" step="1" value="{duration}" data-sync="duration">
+            <input type="number" name="duration" value="{duration}" step="1" min="2" max="120"></div>
+            <span class="help-text">Longer signals improve ACF recovery for steep exponents</span></div>
+          <div class="field"><label>Sample rate (Hz)</label>
+            <div class="range-row"><input type="range" min="128" max="1024" step="64" value="{sfreq}" data-sync="sfreq">
+            <input type="number" name="sfreq" value="{sfreq}" step="64" min="128" max="1024"></div>
+            <span class="help-text">256 Hz is standard for scalp EEG</span></div>
+          <div class="field"><label>Seed</label>
+            <input type="number" name="seed" value="{seed}" min="0" max="99999">
+            <span class="help-text">Random seed for reproducibility</span></div>
+        </div>
+      </details>
+      <button type="submit" class="run-btn">Run Simulation</button>
+    </form>
+  </div>
 </div>
-{_peak_fields_html(1, peak1_center, peak1_power, peak1_bw, n_peaks)}
-{_peak_fields_html(2, peak2_center, peak2_power, peak2_bw, n_peaks)}
-{_peak_fields_html(3, peak3_center, peak3_power, peak3_bw, n_peaks)}
-<button type="submit">Generate &amp; Compare</button>
-</form>
 
-<div class="plot plot-wrapper">
-<div class="loading-overlay" id="loading"><div class="spinner"></div></div>
-<h3>Power Spectral Density</h3>
-<div id="psd-plot"></div>
+<div class="main-panel" id="main-panel">
+  <div class="top-bar">
+    <button class="sidebar-toggle" id="sidebar-toggle" type="button">&#9776;</button>
+    <div>
+      <h1 style="margin-bottom:2px;">EEG SpecParam Simulator</h1>
+      <p class="subtitle" style="margin-bottom:8px;">Compare spectral and time-domain SpecParam on synthetic EEG</p>
+    </div>
+  </div>
+  {_nav_html("Simulator")}
+
+  <div class="card plot-wrapper">
+    <div class="card-header"><span>Power Spectral Density</span><button class="expand-btn" type="button">&#x26F6;</button></div>
+    <div class="card-body">
+      <div class="loading-overlay" id="loading"><div class="skeleton-bar"></div></div>
+      <div id="psd-plot"></div>
+    </div>
+  </div>
+
+  <div class="card plot-wrapper" id="acf-container" style="{"" if acf_fig else "display:none"}">
+    <div class="card-header"><span>Autocovariance (ACF Fit)</span><button class="expand-btn" type="button">&#x26F6;</button></div>
+    <div class="card-body">
+      <div id="acf-plot"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span>Parameter Comparison</span></div>
+    <div class="card-body" style="padding:0;">
+      <table>
+        <tr><th>Parameter</th><th>Spectral</th><th>Time-Domain</th><th>Difference</th></tr>
+        <tbody id="comparison-table">{table_html}</tbody>
+      </table>
+    </div>
+  </div>
 </div>
-
-<div class="plot plot-wrapper" id="acf-container" style="{"" if acf_fig else "display:none"}">
-<h3>Autocovariance (ACF Fit)</h3>
-<div id="acf-plot"></div>
-</div>
-
-<h3>Parameter Comparison</h3>
-<table>
-<tr><th>Parameter</th><th>Spectral</th><th>Time-Domain</th><th>Difference</th></tr>
-<tbody id="comparison-table">{table_html}</tbody>
-</table>
 
 <script>
 (function() {{
@@ -579,6 +793,26 @@ button:hover {{ background: #2980b9; }}
   var acfData = {acf_json};
   if (acfData) Plotly.react("acf-plot", acfData.data, acfData.layout);
 
+  document.querySelectorAll(".expand-btn").forEach(function(btn) {{
+    btn.addEventListener("click", function() {{
+      var card = btn.closest(".card");
+      card.classList.toggle("fullscreen");
+      btn.innerHTML = card.classList.contains("fullscreen") ? "&#x2715;" : "&#x26F6;";
+      setTimeout(function() {{
+        var plotDiv = card.querySelector(".js-plotly-plot");
+        if (plotDiv) Plotly.Plots.resize(plotDiv);
+      }}, 100);
+    }});
+  }});
+
+  var sidebar = document.getElementById("sidebar");
+  document.getElementById("sidebar-toggle").addEventListener("click", function() {{
+    sidebar.classList.toggle("open");
+  }});
+  document.getElementById("sidebar-close").addEventListener("click", function() {{
+    sidebar.classList.remove("open");
+  }});
+
   var form = document.getElementById("sim-form");
   var loading = document.getElementById("loading");
   var controller = null;
@@ -586,9 +820,11 @@ button:hover {{ background: #2980b9; }}
 
   function showPeakFields() {{
     var n = parseInt(form.querySelector("[name=n_peaks]").value) || 0;
-    document.getElementById("peak1-fields").style.display = n >= 1 ? "" : "none";
-    document.getElementById("peak2-fields").style.display = n >= 2 ? "" : "none";
-    document.getElementById("peak3-fields").style.display = n >= 3 ? "" : "none";
+    [1, 2, 3].forEach(function(i) {{
+      var el = document.getElementById("peak" + i + "-fields");
+      if (n >= i) {{ el.classList.add("visible"); }}
+      else {{ el.classList.remove("visible"); }}
+    }});
   }}
 
   form.querySelectorAll("input[type=range]").forEach(function(slider) {{
@@ -600,7 +836,7 @@ button:hover {{ background: #2980b9; }}
 
   function getParams() {{
     var params = new URLSearchParams();
-    form.querySelectorAll("input[name]").forEach(function(el) {{
+    form.querySelectorAll("input[name], select[name]").forEach(function(el) {{
       params.set(el.name, el.value);
     }});
     return params;
@@ -640,11 +876,13 @@ button:hover {{ background: #2980b9; }}
       }});
   }}
 
-  form.addEventListener("input", function() {{
+  function onFormChange() {{
     showPeakFields();
     clearTimeout(timer);
     timer = setTimeout(fetchResults, 500);
-  }});
+  }}
+  form.addEventListener("input", onFormChange);
+  form.addEventListener("change", onFormChange);
 
   form.addEventListener("submit", function(e) {{
     e.preventDefault();
@@ -865,42 +1103,57 @@ def sweep_page(
 <head>
 <title>EEG SpecParam Equivalence Simulator</title>
 <style>
-{_BASE_CSS}
-a {{ color: #3498db; }}
+{_SHINY_CSS}
+a {{ color: var(--accent); }}
 </style>
 </head>
 <body>
-<h1>EEG SpecParam Equivalence Simulator</h1>
-<p class="subtitle">Bland-Altman analysis and parameter sweep across exponent x peak power</p>
+<h1>Parameter Space Sweep</h1>
+<p class="subtitle">Bland-Altman analysis and equivalence metrics across exponent &times; peak power</p>
 
 {_nav_html("Quick Sweep" if mode == "quick" else "Full Sweep")}
 
-<h3>Summary</h3>
-<table>
-<tr><th>Metric</th><th>Value</th></tr>
-<tr><td>Sweep grid</td><td>{len(exponents)} exponents x {len(peak_powers)} peak powers = {n_runs} runs</td></tr>
-<tr><td>Convergence</td><td>{converged}/{n_runs} ({100*converged/n_runs:.0f}%)</td></tr>
-<tr><td>Exponent RMSE</td><td>{exp_rmse}</td></tr>
-<tr><td>Exponent bias</td><td>{exp_bias}</td></tr>
-<tr><td>Offset RMSE</td><td>{off_rmse}</td></tr>
-<tr><td>Offset bias</td><td>{off_bias}</td></tr>
-<tr><td>Peak center RMSE</td><td>{pk_rmse}</td></tr>
-<tr><td>TOST exponent (bound=0.2)</td>
-    <td><span class="badge" style="background:{tost_exp_color}">{tost_exp_str}</span>
-    p = {max(tost_exp['p_upper'], tost_exp['p_lower']):.4f}</td></tr>
-<tr><td>TOST offset (bound=0.3)</td>
-    <td><span class="badge" style="background:{tost_off_color}">{tost_off_str}</span>
-    p = {max(tost_off['p_upper'], tost_off['p_lower']):.4f}</td></tr>
-</table>
-
-<div class="plot">
-<h3>Bland-Altman Plots</h3>
-{ba_html}
+<div class="sweep-controls">
+  <label>Mode:</label>
+  <select onchange="window.location='/sweep?mode='+this.value+'&seed={seed}'">
+    <option value="quick" {"selected" if mode == "quick" else ""}>Quick (20 runs)</option>
+    <option value="full" {"selected" if mode == "full" else ""}>Full (36 runs)</option>
+  </select>
+  <label>Seed:</label>
+  <input type="number" value="{seed}" min="0" max="9999" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:4px;"
+         onchange="window.location='/sweep?mode={mode}&seed='+this.value">
 </div>
 
-<div class="plot">
-<h3>Parameter Space Heatmap</h3>
+<div class="card">
+<div class="card-header">Summary</div>
+<div class="card-body">
+<p style="color:var(--text-muted); margin-top:0; font-size:0.9em;">
+{len(exponents)} exponents &times; {len(peak_powers)} peak powers = {n_runs} runs</p>
+<div class="metrics-grid">
+  <div class="metric-box"><div class="value">{converged}/{n_runs}</div><div class="label">Converged</div></div>
+  <div class="metric-box"><div class="value">{exp_rmse}</div><div class="label">Exponent RMSE</div></div>
+  <div class="metric-box"><div class="value">{off_rmse}</div><div class="label">Offset RMSE</div></div>
+  <div class="metric-box"><div class="value">{pk_rmse}</div><div class="label">Peak Center RMSE</div></div>
+  <div class="metric-box"><div class="value"><span class="badge" style="background:{tost_exp_color}">{tost_exp_str}</span></div>
+    <div class="label">TOST Exponent (p={max(tost_exp['p_upper'], tost_exp['p_lower']):.4f})</div></div>
+  <div class="metric-box"><div class="value"><span class="badge" style="background:{tost_off_color}">{tost_off_str}</span></div>
+    <div class="label">TOST Offset (p={max(tost_off['p_upper'], tost_off['p_lower']):.4f})</div></div>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header">Bland-Altman Plots</div>
+<div class="card-body">
+{ba_html}
+</div>
+</div>
+
+<div class="card">
+<div class="card-header">Parameter Space Heatmap</div>
+<div class="card-body">
 {hm_html}
+</div>
 </div>
 
 </body>

@@ -240,6 +240,46 @@ Mixing approaches creates two Plotly instances in the same container — the fir
 inline script, the second from `Plotly.react`. Use `to_json` for initial data, render it via
 `Plotly.react` in a `<script>` block, and reuse the same div ID for AJAX updates.
 
+### 🚧 SIGN: Cache deterministic sweep results — don't recompute on every request
+`_run_mini_sweep()` (15 runs, ~5-8s) and `_run_sweep()` (up to 36 runs, ~10-18s) produce
+deterministic results for fixed inputs. Use module-level caching (`_mini_sweep_cache` singleton)
+for parameterless sweeps and `@lru_cache` for parameterized sweeps. Without caching, every
+page load blocks for seconds of unnecessary computation.
+
+### 🚧 SIGN: `_run_sweep` uses tuples for `@lru_cache` compatibility
+`@lru_cache` requires hashable arguments. The sweep function signature uses
+`tuple[float, ...]` instead of `list[float]` for exponents and peak_powers. Callers
+must pass tuples, not lists.
+
+## Phase 10 Constraints (R Shiny-Style UI Redesign)
+
+### 🚧 SIGN: UI redesign is HTML/CSS only — do not change simulation logic
+Phase 10 modifies `src/app.py` templates and styles only. Do not change any computation,
+fitting, or comparison logic. The simulation pipeline, schemas, and all backend functions
+must remain identical. All 213 tests must pass after every change.
+
+### 🚧 SIGN: Keep single-file FastAPI architecture — no external CSS frameworks
+Do not add Bootstrap, Tailwind, or other CSS frameworks. All styles remain as Python string
+constants in `src/app.py`. This preserves the zero-dependency frontend and keeps deployment
+simple. Custom CSS only — inspired by R Shiny's look, not importing Shiny's actual CSS.
+
+### 🚧 SIGN: R Shiny visual reference — what makes it look "Shiny"
+The R Shiny look is defined by: (1) sidebar-panel + main-panel two-column layout,
+(2) `wellPanel`-style recessed input groups, (3) `box()`/`card()` containers with colored
+headers, (4) dark navbar with white text, (5) compact data-dense layout with clear hierarchy,
+(6) muted professional color palette (blues/grays), (7) smooth reactive updates with loading
+indicators. If it looks like a generic Bootstrap page, it's not Shiny enough.
+
+### 🚧 SIGN: Preserve AJAX auto-compute and URL shareability
+The existing AJAX fetch + `Plotly.react` + `history.replaceState` pattern must survive the
+redesign. Do not break the debounced auto-compute, AbortController cancellation, or
+query-param URL updates. These are core UX features, not styling concerns.
+
+### 🚧 SIGN: Sidebar must be collapsible for mobile and small screens
+At viewport widths < 768px, the sidebar should collapse (hidden by default, toggleable).
+The main panel should be full-width when sidebar is collapsed. Use CSS media queries and
+a small JS toggle — no heavy framework.
+
 ## Process Constraints
 
 ### 🚧 SIGN: Run tests after every change
